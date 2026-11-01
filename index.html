@@ -474,6 +474,7 @@ nav.tabs button{font-size:11px}
   <div class="modal">
     <h2>تحويل بين التصنيفات</h2>
     <div><span class="lbl">من</span><div class="chips" id="trFrom" style="flex-wrap:wrap;margin:0"></div></div>
+    <button class="btn ghost" id="trSwap" style="align-self:center;padding:6px 14px;font-size:13px">⇅ عكس الاتجاه</button>
     <div><span class="lbl">إلى</span><div class="chips" id="trTo" style="flex-wrap:wrap;margin:0"></div></div>
     <div><label for="trAmount">المبلغ (ر.ع)</label><input id="trAmount" class="calc-in" autocomplete="off"><div class="calc-prev"></div></div>
     <div class="actions"><span></span><div><button class="btn ghost" id="trCancel">إلغاء</button><button class="btn" id="trSave">تحويل</button></div></div>
@@ -1116,7 +1117,7 @@ $('blSave').onclick = safe(()=>{
 let trFrom = '', trTo = '';
 function drawTrChips(elId, sel, other){
   const ents = finEntities();
-  $(elId).innerHTML = ents.map(g=>`<button type="button" class="chip ${sel===g.id?'on':''}" style="--c:${g.color}" data-id="${g.id}" ${g.id===other?'disabled':''}><i style="background:${g.color}"></i>${esc(g.name)} <span class="money" style="color:var(--muted);font-size:12px">${fmt(balOf(g.id))}</span></button>`).join('');
+  $(elId).innerHTML = ents.map(g=>`<button type="button" class="chip ${sel===g.id?'on':''}" style="--c:${g.color}" data-id="${g.id}"><i style="background:${g.color}"></i>${esc(g.name)} <span class="money" style="color:var(--muted);font-size:12px">${fmt(balOf(g.id))}</span></button>`).join('');
 }
 function renderTransfer(){ drawTrChips('trFrom', trFrom, trTo); drawTrChips('trTo', trTo, trFrom); }
 function openTransfer(from){
@@ -1128,8 +1129,9 @@ function openTransfer(from){
 }
 $('ovTransfer').onclick = ()=>openTransfer(null);
 $('catTransfer').onclick = ()=>openTransfer(finView || '');
-$('trFrom').onclick = e=>{ const b = e.target.closest('.chip'); if(!b || b.disabled) return; trFrom = b.dataset.id; renderTransfer(); };
-$('trTo').onclick = e=>{ const b = e.target.closest('.chip'); if(!b || b.disabled) return; trTo = b.dataset.id; renderTransfer(); };
+$('trFrom').onclick = e=>{ const b = e.target.closest('.chip'); if(!b) return; const v = b.dataset.id; if(v===trTo) trTo = trFrom; trFrom = v; renderTransfer(); };
+$('trTo').onclick = e=>{ const b = e.target.closest('.chip'); if(!b) return; const v = b.dataset.id; if(v===trFrom) trFrom = trTo; trTo = v; renderTransfer(); };
+$('trSwap').onclick = ()=>{ [trFrom, trTo] = [trTo, trFrom]; renderTransfer(); };
 $('trCancel').onclick = ()=>hide('trModal');
 $('trSave').onclick = safe(()=>{
   const v = calcEval($('trAmount').value);
