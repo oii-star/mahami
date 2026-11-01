@@ -706,9 +706,10 @@ nav.tabs button{font-size:11px}
     </div>
     <div class="set-sec" id="commSec">
       <h3>عمولة الإدارة</h3>
-      <div class="hint">عند تحصيل أي إيجار تُحوَّل العمولة مباشرة إلى الحساب الشخصي، والباقي إلى رصيد العمارة.</div>
+      <div class="hint">عند تحصيل أي إيجار تُحوَّل العمولة مباشرة إلى الحساب الشخصي، والباقي إلى رصيد العمارة. يمكنك تحديد نسبة مختلفة لكل عمارة.</div>
       <div><span class="lbl">الحساب الشخصي</span><div class="chips" id="personalChips" style="flex-wrap:wrap;margin:0"></div></div>
-      <div class="toggle-row"><span>نسبة العمولة من الإيجار %</span><input id="commPct" inputmode="decimal" style="width:90px;text-align:center" autocomplete="off"></div>
+      <div class="toggle-row"><span>النسبة الافتراضية %</span><input id="commPct" inputmode="decimal" style="width:90px;text-align:center" autocomplete="off"></div>
+      <div id="bldPctWrap"><span class="lbl">نسبة خاصة لكل عمارة (اتركها فارغة لاستخدام الافتراضية)</span><div class="card" id="bldPct"></div></div>
     </div>
     <div class="set-sec">
       <h3>الإشعارات</h3>
@@ -1405,6 +1406,14 @@ function bindDebtList(el){
 }
 bindDebtList($('debtList'));
 function personalCat(){ const id = state.settings.personalCat; if(id && propById(id)) return id; const g = state.props.find(p=>/شخص/.test(p.name)); return g ? g.id : ''; }
+// العمارات = كل التصنيفات ما عدا الحساب الشخصي
+function buildingProps(){ const pc = personalCat(); return state.props.filter(p=>p.id!==pc); }
+// المستأجر لازم يكون على عمارة، مو على الحساب الشخصي
+function fixTenants(){
+  const bp = buildingProps(), pc = personalCat(); let changed = false;
+  if(bp.length===1) state.tenants.forEach(t=>{ if(!propById(t.prop) || t.prop===pc){ t.prop = bp[0].id; changed = true; } });
+  return changed;
+}
 function defaultAcc(){ return personalCat() || (state.props[0]?.id) || ''; }
 function drawAccChips(elId, sel){
   const ents = finEntities();
@@ -1557,7 +1566,7 @@ function rpData(cat, from, to){
 }
 const rpDate = s => { const d = new Date(s+'T00:00'); return `${d.getDate()}/${d.getMonth()+1}/${d.getFullYear()}`; };
 const unitLbl = r => `${r.unit ? 'شقة ' + r.unit : 'وحدة'}${r.name ? ' – ' + r.name : ''}`;
-function rpPctLabel(d){ const ps = [...new Set(d.rents.filter(r=>r.pct).map(r=>r.pct))]; const p = ps.length===1 ? ps[0] : (ps.length ? null : Number(state.settings.commissionPct)||0); return p===null ? '' : ` (${p}٪)`; }
+function rpPctLabel(d){ const ps = [...new Set(d.rents.filter(r=>r.pct).map(r=>r.pct))]; const bpp = propById(rpCat); const p = ps.length===1 ? ps[0] : (ps.length ? null : Number(bpp && bpp.commission!=null ? bpp.commission : state.settings.commissionPct)||0); return p===null ? '' : ` (${p}٪)`; }
 function renderReport(){
   if(!propById(rpCat)) rpCat = state.props.find(p=>p.id!==personalCat())?.id || state.props[0]?.id || '';
   $('rpCats').innerHTML = state.props.map(g=>`<button type="button" class="chip ${rpCat===g.id?'on':''}" style="--c:${g.color}" data-id="${g.id}"><i style="background:${g.color}"></i>${esc(g.name)}</button>`).join('');
@@ -1712,7 +1721,8 @@ function tenantHTML(t){
   </div>`;
 }
 function renderRents(){
-  rentProp = renderCatFilter('rentProps', rentProp, id=>{ rentProp = id; renderRents(); }, state.props);
+  if(fixTenants()) save();
+  rentProp = renderCatFilter('rentProps', rentProp, id=>{ rentProp = id; renderRents(); }, buildingProps());
   const pool = state.tenants.filter(t=>rentProp==='all' || t.prop===rentProp);
   const today = todayStr(), mStart = today.slice(0,8)+'01', mEnd = addMonths(mStart,1,1);
   // المحصّل هذا الشهر
@@ -1758,7 +1768,7 @@ let editingTenant = null;
 function openTenant(t){
   editingTenant = t ? t.id : null;
   $('tnTitle').textContent = t ? 'بيانات المستأجر' : 'مستأجر جديد';
-  renderCatPicker('tnPropWrap','tnProps', t ? t.prop : (rentProp!=='all'?rentProp:''), state.props, true);
+  renderCatPicker('tnPropWrap','tnProps', t ? t.prop : (rentProp!=='all'?rentProp:''), buildingProps(), true);
   $('tnUnit').value = t ? t.unit : '';
   $('tnName').value = t ? t.name : '';
   setCalcIn('tnRent', t ? String(t.rent) : '');
@@ -1784,8 +1794,8 @@ $('tnLog').onclick = e=>{
 };
 $('tnCancel').onclick = ()=>hide('tenantModal');
 $('tnSave').onclick = safe(()=>{
-  const prop = pickedCat('tnProps', state.props);
-  if(state.props.length>=2 && !prop){ toast('اختر العمارة'); return; }
+  const prop = pickedCat('tnProps', buildingProps());
+  if(buildingProps().length>=2 && !prop){ toast('اختر العمارة'); return; }
   const unit = $('tnUnit').value.trim(), name = $('tnName').value.trim();
   if(!unit && !name){ $('tnUnit').focus(); toast('اكتب رقم الشقة أو اسم المستأجر'); return; }
   const rent = calcEval($('tnRent').value);
@@ -1818,6 +1828,7 @@ function renderCollect(){
   $('colHint').textContent = t.end ? `المتبقي في العقد: ${max===1?'شهر واحد':max+' أشهر'}` : '';
 }
 function openCollect(t){
+  if(buildingProps().length && (!propById(t.prop) || t.prop===personalCat())){ toast('حدد العمارة لهذا المستأجر أولاً'); openTenant(t); return; }
   if(monthsLeft(t)===0){ toast('العقد مكتمل، جدّده أولاً'); return; }
   collecting = t.id; colMonths = 1;
   $('colTitle').textContent = 'تحصيل: ' + tenantTitle(t).replace(/&[^;]+;/g,'');
@@ -1830,7 +1841,7 @@ $('colMinus').onclick = ()=>{ colMonths--; renderCollect(); };
 $('colPlus').onclick = ()=>{ colMonths++; renderCollect(); };
 $('colCancel').onclick = ()=>hide('collectModal');
 function commFor(t){
-  const pc = personalCat(), pct = Number(state.settings.commissionPct)||0, cat = propById(t.prop) ? t.prop : '';
+  const pc = personalCat(), bp = propById(t.prop), pct = Number(bp && bp.commission!=null ? bp.commission : state.settings.commissionPct)||0, cat = bp ? t.prop : '';
   return (pc && pct>0 && cat!==pc) ? {pct, to:pc} : null;
 }
 function renderCollectSplit(){
@@ -1993,7 +2004,7 @@ const MANAGERS = {
   cat:  {key:'cats',  list:'catList',  name:'catName',  colors:'catColors',  add:'catAdd',  word:'الفئة',  none:'لا توجد فئات بعد',
          owners:()=>[...state.tasks, ...state.notes], field:'cat', orphan:'ستبقى المهام والملاحظات بدون فئة.'},
   prop: {key:'props', list:'propList', name:'propName', colors:'propColors', add:'propAdd', word:'التصنيف', none:'لا توجد تصنيفات بعد',
-         owners:()=>[...state.bills, ...state.tenants], field:'prop', orphan:'ستبقى الالتزامات والمستأجرون بدون تصنيف.'}
+         owners:()=>state.bills, field:'prop', orphan:'ستبقى الالتزامات والمستأجرون بدون تصنيف.'}
 };
 const newColors = {cat:COLORS[0], prop:COLORS[3]};
 function renderManager(k){
@@ -2037,6 +2048,10 @@ function renderSettings(){
   const pc = personalCat();
   $('personalChips').innerHTML = state.props.map(g=>`<button type="button" class="chip ${pc===g.id?'on':''}" style="--c:${g.color}" data-id="${g.id}"><i style="background:${g.color}"></i>${esc(g.name)}</button>`).join('');
   if(document.activeElement!==$('commPct')) $('commPct').value = state.settings.commissionPct;
+  const bp = buildingProps();
+  $('bldPctWrap').style.display = bp.length ? 'block' : 'none';
+  if(!$('bldPct').contains(document.activeElement))
+    $('bldPct').innerHTML = bp.map(g=>`<div class="cat-row"><i style="background:${g.color}"></i><span>${esc(g.name)}</span><input data-id="${g.id}" inputmode="decimal" value="${g.commission ?? ''}" placeholder="${state.settings.commissionPct}" style="width:80px;text-align:center;padding:6px" autocomplete="off"><span style="flex:0;color:var(--muted)">٪</span></div>`).join('');
   $('tglNotes').classList.toggle('on', !!state.settings.showNotes);
   $('tglRents').classList.toggle('on', !!state.settings.showRents);
   renderNotifBtn();
@@ -2045,6 +2060,15 @@ $('tglNotes').onclick = ()=>{ state.settings.showNotes = !state.settings.showNot
 $('tglRents').onclick = ()=>{ state.settings.showRents = !state.settings.showRents; save(); renderSettings(); applySections(); };
 $('personalChips').onclick = e=>{ const b = e.target.closest('.chip'); if(!b) return; state.settings.personalCat = b.dataset.id; save(); renderSettings(); };
 $('commPct').addEventListener('change', ()=>{ const v = calcEval($('commPct').value); if(isNaN(v) || v<0 || v>100){ toast('اكتب نسبة بين 0 و 100'); $('commPct').value = state.settings.commissionPct; return; } state.settings.commissionPct = v; save(); toast('تم حفظ النسبة: '+v+'٪'); });
+$('bldPct').addEventListener('change', e=>{
+  const inp = e.target.closest('input[data-id]'); if(!inp) return;
+  const p = propById(inp.dataset.id); if(!p) return;
+  const raw = inp.value.trim();
+  if(!raw){ delete p.commission; save(); toast(`«${p.name}» تستخدم النسبة الافتراضية`); return; }
+  const v = calcEval(raw);
+  if(isNaN(v) || v<0 || v>100){ toast('اكتب نسبة بين 0 و 100'); inp.value = p.commission ?? ''; return; }
+  p.commission = v; save(); toast(`نسبة «${p.name}»: ${v}٪`);
+});
 $('openSettings').onclick = ()=>{ renderSettings(); show('settingsModal'); };
 $('sClose').onclick = ()=>{ hide('settingsModal'); renderAll(); };
 
