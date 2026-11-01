@@ -639,8 +639,8 @@ nav.tabs button{font-size:11px}
     <div id="reportDoc"></div>
     <div class="no-print" style="display:flex;flex-direction:column;gap:8px">
       <div class="grid2">
-        <button class="btn block" id="rpShare"><svg><use href="#i-up"/></svg>مشاركة</button>
-        <button class="btn soft block" id="rpPrint"><svg><use href="#i-notes"/></svg>طباعة / PDF</button>
+        <button class="btn soft block" id="rpShare"><svg><use href="#i-up"/></svg>مشاركة كنص</button>
+        <button class="btn block" id="rpPrint"><svg><use href="#i-notes"/></svg>ملف PDF</button>
       </div>
       <button class="btn ghost block" id="rpPayout">تسجيل تسليم الصافي للمالك</button>
     </div>
@@ -1669,7 +1669,129 @@ $('rpShare').onclick = async ()=>{
   try{ if(navigator.share){ await navigator.share({title:'تقرير المالك', text}); return; } }catch(e){ if(e && e.name==='AbortError') return; }
   try{ await navigator.clipboard.writeText(text); toast('تم نسخ التقرير، الصقه في الواتساب'); }catch(e){ toast('تعذّرت المشاركة'); }
 };
-$('rpPrint').onclick = ()=>{ try{ window.print(); }catch(e){ toast('الطباعة غير متاحة على هذا الجهاز'); } };
+/* ---------- تصدير التقرير PDF ---------- */
+function reportModel(){
+  const prop = propById(rpCat), [from, to] = rpRange(), d = rpData(rpCat, from, to);
+  const B = [];
+  B.push({t:'title', text:`${rpType==='m'?'التقرير الشهري':'التقرير السنوي'} — ${prop?.name||''}`});
+  B.push({t:'meta', text:`المالك: ${prop?.owner||'—'}   ·   الفترة: ${rpType==='m'?`${MONTHS[rpM]} ${rpY}`:`سنة ${rpY}`}   ·   تاريخ الإصدار: ${rpDate(todayStr())}   ·   المبالغ بالريال العماني`});
+  if(rpType==='m'){
+    B.push({t:'h', text:'الإيجارات المحصّلة'});
+    if(d.rents.length) B.push({t:'table', cols:[{l:'الوحدة',w:.42},{l:'التاريخ',w:.2},{l:'الإيجار',w:.19,n:1},{l:'العمولة',w:.19,n:1}],
+      rows:d.rents.map(r=>[unitLbl(r)+(r.months>1?` (${r.months} أشهر)`:''), rpDate(r.date), fmt(r.amount), fmt(r.commission)]),
+      total:['الإجمالي','',fmt(d.gross),fmt(d.comm)]});
+    else B.push({t:'muted', text:'لا توجد إيجارات محصّلة في هذه الفترة'});
+    B.push({t:'h', text:'الصيانة والمصاريف'});
+    if(d.exps.length) B.push({t:'table', cols:[{l:'البند',w:.55},{l:'التاريخ',w:.22},{l:'المبلغ',w:.23,n:1}],
+      rows:d.exps.map(x=>[x.name, rpDate(x.date), fmt(x.amount)]), total:['الإجمالي','',fmt(d.exp)]});
+    else B.push({t:'muted', text:'لا توجد مصاريف في هذه الفترة'});
+    if(d.other.length){ B.push({t:'h', text:'دخل آخر'}); B.push({t:'table', cols:[{l:'البيان',w:.55},{l:'التاريخ',w:.22},{l:'المبلغ',w:.23,n:1}], rows:d.other.map(x=>['دخل مضاف', rpDate(x.date), fmt(x.amount)])}); }
+  } else {
+    const rows = []; const T = {g:0,c:0,e:0,n:0};
+    for(let m=0;m<12;m++){ const s = `${rpY}-${pad(m+1)}-01`, md = rpData(rpCat, s, addMonths(s,1,1)); T.g+=md.gross; T.c+=md.comm; T.e+=md.exp; T.n+=md.net; rows.push([MONTHS[m], fmt(md.gross), fmt(md.comm), fmt(md.exp), fmt(md.net)]); }
+    B.push({t:'h', text:'ملخص الأشهر'});
+    B.push({t:'table', cols:[{l:'الشهر',w:.2},{l:'الإيجارات',w:.2,n:1},{l:'العمولة',w:.2,n:1},{l:'المصاريف',w:.2,n:1},{l:'الصافي',w:.2,n:1}], rows, total:['الإجمالي',fmt(T.g),fmt(T.c),fmt(T.e),fmt(T.n)]});
+  }
+  B.push({t:'h', text:'الملخص'});
+  const S = [['إجمالي الإيجارات المحصّلة', fmt(d.gross)], ['عمولة الإدارة'+rpPctLabel(d), '− '+fmt(d.comm)], ['الصيانة والمصاريف', '− '+fmt(d.exp)]];
+  if(d.oth) S.push(['دخل آخر', '+ '+fmt(d.oth)]);
+  S.push(['الصافي للمالك', fmt(d.net), 1]);
+  if(d.paid){ S.push(['المسلَّم للمالك', fmt(d.paid)]); S.push(['المتبقي للتسليم', fmt(d.due), 2]); }
+  B.push({t:'sum', rows:S});
+  if(d.comm) B.push({t:'note', text:'عمولة الإدارة تُخصم من كل إيجار عند تحصيله وتُحوَّل مباشرة إلى حساب المستثمر، ولا تدخل رصيد العمارة.'});
+  const today = todayStr();
+  if(today>=from && today<to){
+    const late = state.tenants.filter(t=>t.prop===rpCat && overdueMonths(t)>0);
+    if(late.length){ B.push({t:'h', text:'إيجارات متأخرة حتى تاريخه'}); B.push({t:'table', cols:[{l:'الوحدة',w:.5},{l:'المدة',w:.25},{l:'المبلغ',w:.25,n:1}], rows:late.map(t=>{ const n = overdueMonths(t); return [unitLbl(t), n===1?'شهر':n===2?'شهرين':n+' أشهر', fmt(n*t.rent)]; })}); }
+  }
+  return {blocks:B, name:`تقرير ${prop?.name||''} ${rpType==='m'?`${MONTHS[rpM]} ${rpY}`:rpY}`};
+}
+// رسم التقرير على صفحات A4 (1240×1754 بكسل)
+async function renderReportPages(){
+  try{ await document.fonts.ready; }catch(e){}
+  const W = 1240, H = 1754, M = 90, CW = W - 2*M, FONT = "'IBM Plex Sans Arabic', -apple-system, 'Geeza Pro', sans-serif";
+  const pages = []; let c, x, y;
+  const newPage = ()=>{ c = document.createElement('canvas'); c.width = W; c.height = H; x = c.getContext('2d'); x.fillStyle = '#fff'; x.fillRect(0,0,W,H); x.textBaseline = 'middle'; pages.push(c); y = M; };
+  const ensure = h=>{ if(y + h > H - M) newPage(); };
+  const txt = (s, px, py, size, opt={})=>{ x.font = `${opt.bold?700:400} ${size}px ${FONT}`; x.fillStyle = opt.color||'#111'; x.direction = opt.ltr?'ltr':'rtl'; x.textAlign = opt.align||'right'; x.fillText(s, px, py); };
+  const fit = (s, maxW, size, bold)=>{ x.font = `${bold?700:400} ${size}px ${FONT}`; if(x.measureText(s).width <= maxW) return s; while(s.length>1 && x.measureText(s+'…').width > maxW) s = s.slice(0,-1); return s+'…'; };
+  const wrap = (s, maxW, size)=>{ x.font = `400 ${size}px ${FONT}`; const words = s.split(' '), lines = []; let cur = ''; words.forEach(w=>{ const t = cur ? cur+' '+w : w; if(x.measureText(t).width > maxW && cur){ lines.push(cur); cur = w; } else cur = t; }); if(cur) lines.push(cur); return lines; };
+  const line = (yy, w=2, col='#111')=>{ x.fillStyle = col; x.fillRect(M, yy, CW, w); };
+  newPage();
+  for(const b of model.blocks){
+    if(b.t==='title'){ ensure(70); txt(b.text, W-M, y+28, 44, {bold:1}); y += 70; }
+    else if(b.t==='meta'){ const ls = wrap(b.text, CW, 24); ensure(ls.length*36+20); ls.forEach(l=>{ txt(l, W-M, y+16, 24, {color:'#555'}); y += 36; }); y += 20; }
+    else if(b.t==='h'){ ensure(110); y += 24; txt(b.text, W-M, y+22, 32, {bold:1}); y += 50; line(y, 4); y += 10; }
+    else if(b.t==='muted'){ ensure(50); txt(b.text, W-M, y+22, 26, {color:'#888'}); y += 50; }
+    else if(b.t==='table'){
+      const RH = 54, cols = b.cols; let edges = [], acc = W - M;
+      cols.forEach(cl=>{ const w = cl.w*CW; edges.push([acc - w, acc]); acc -= w; });
+      const drawRow = (cells, opt={})=>{
+        ensure(RH);
+        cells.forEach((v, i)=>{ const [l, r] = edges[i], cl = cols[i]; if(v==='') return;
+          if(cl.n) txt(fit(String(v), r-l-16, opt.size||26, opt.bold), l+8, y+RH/2, opt.size||26, {ltr:1, align:'left', bold:opt.bold, color:opt.color});
+          else txt(fit(String(v), r-l-16, opt.size||26, opt.bold), r-8, y+RH/2, opt.size||26, {bold:opt.bold, color:opt.color}); });
+        y += RH; if(!opt.noLine) line(y-1, opt.thick?4:1, opt.thick?'#111':'#e5e5e5');
+      };
+      drawRow(cols.map(cl=>cl.l), {bold:1, size:24, color:'#444'});
+      b.rows.forEach(r=>drawRow(r));
+      if(b.total){ y += 2; line(y-2, 4); drawRow(b.total, {bold:1, noLine:1}); }
+      y += 10;
+    }
+    else if(b.t==='sum'){
+      b.rows.forEach(([l, v, big])=>{ const h = big?70:50; ensure(h); if(big===1){ line(y+4, 4); y += 12; }
+        txt(l, W-M, y+h/2-6, big?34:27, {bold:!!big}); txt(v, M, y+h/2-6, big?34:27, {ltr:1, align:'left', bold:!!big}); y += h; });
+    }
+    else if(b.t==='note'){ const ls = wrap(b.text, CW-40, 23); const h = ls.length*34+30; ensure(h+20); y += 16; x.fillStyle = '#f3f4f6'; x.beginPath(); x.roundRect ? x.roundRect(M, y, CW, h, 14) : x.rect(M, y, CW, h); x.fill(); let yy = y+15; ls.forEach(l=>{ txt(l, W-M-20, yy+17, 23, {color:'#333'}); yy += 34; }); y += h + 10; }
+  }
+  pages.forEach((pg, i)=>{ const cx = pg.getContext('2d'); cx.font = `400 20px ${FONT}`; cx.fillStyle = '#999'; cx.textAlign = 'center'; cx.direction = 'rtl'; cx.fillText(`صفحة ${i+1} من ${pages.length}`, W/2, H-45); });
+  return pages;
+}
+let model = null;
+// PDF بسيط: صورة JPEG لكل صفحة A4
+function buildPDF(pages){
+  const enc = new TextEncoder(), chunks = [], offs = []; let len = 0;
+  const add = d=>{ const u = typeof d==='string' ? enc.encode(d) : d; chunks.push(u); len += u.length; };
+  const obj = (n, body)=>{ offs[n] = len; add(`${n} 0 obj\n`); body(); add('\nendobj\n'); };
+  const N = pages.length, PW = 595.28, PH = 841.89;
+  add('%PDF-1.4\n%\xE2\xE3\xCF\xD3\n');
+  obj(1, ()=>add('<< /Type /Catalog /Pages 2 0 R >>'));
+  obj(2, ()=>add(`<< /Type /Pages /Count ${N} /Kids [${pages.map((_,i)=>`${3+i*3} 0 R`).join(' ')}] >>`));
+  pages.forEach((pg, i)=>{
+    const p = 3+i*3, cs = p+1, im = p+2;
+    const b64 = pg.toDataURL('image/jpeg', 0.9).split(',')[1], bin = atob(b64), jpg = new Uint8Array(bin.length);
+    for(let k=0;k<bin.length;k++) jpg[k] = bin.charCodeAt(k);
+    obj(p, ()=>add(`<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ${PW} ${PH}] /Resources << /XObject << /Im${i} ${im} 0 R >> >> /Contents ${cs} 0 R >>`));
+    const content = `q ${PW} 0 0 ${PH} 0 0 cm /Im${i} Do Q`;
+    obj(cs, ()=>{ add(`<< /Length ${content.length} >>\nstream\n`); add(content); add('\nendstream'); });
+    obj(im, ()=>{ add(`<< /Type /XObject /Subtype /Image /Width ${pg.width} /Height ${pg.height} /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /DCTDecode /Length ${jpg.length} >>\nstream\n`); add(jpg); add('\nendstream'); });
+  });
+  const xref = len, total = 3 + N*3;
+  let xr = `xref\n0 ${total}\n0000000000 65535 f \n`;
+  for(let n=1;n<total;n++) xr += String(offs[n]).padStart(10,'0') + ' 00000 n \n';
+  add(xr); add(`trailer\n<< /Size ${total} /Root 1 0 R >>\nstartxref\n${xref}\n%%EOF`);
+  return new Blob(chunks, {type:'application/pdf'});
+}
+async function exportPDF(){
+  model = reportModel();
+  const pages = await renderReportPages();
+  const blob = buildPDF(pages);
+  const fname = model.name.replace(/[\\/:*?"<>|]/g,'').trim() + '.pdf';
+  const file = new File([blob], fname, {type:'application/pdf'});
+  try{
+    if(navigator.canShare && navigator.canShare({files:[file]})){ await navigator.share({files:[file], title:model.name}); return; }
+  }catch(e){ if(e && e.name==='AbortError') return; }
+  const url = URL.createObjectURL(blob), a = document.createElement('a');
+  a.href = url; a.download = fname; document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(()=>URL.revokeObjectURL(url), 60000);
+}
+$('rpPrint').onclick = async ()=>{
+  const b = $('rpPrint'), old = b.innerHTML; b.disabled = true; b.textContent = 'جارٍ التجهيز…';
+  try{ await exportPDF(); }catch(e){ toast('تعذّر إنشاء الملف: '+e.message); }
+  b.disabled = false; b.innerHTML = old;
+};
+
+
 // تسليم للمالك
 $('rpPayout').onclick = ()=>{
   const [from, to] = rpRange(), d = rpData(rpCat, from, to), p = propById(rpCat);
