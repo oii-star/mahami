@@ -1,4 +1,4 @@
-const CACHE = 'mahami-v4';
+const CACHE = 'mahami-v5';
 const FILES = ['./', './index.html', './manifest.json', './icon-192.png', './icon-512.png', './apple-touch-icon.png'];
 
 self.addEventListener('install', e => {
@@ -16,7 +16,7 @@ self.addEventListener('activate', e => {
 self.addEventListener('fetch', e => {
   if (e.request.method !== 'GET') return;
   e.respondWith(
-    fetch(e.request).then(res => {
+    fetch(e.request, { cache: 'no-cache' }).then(res => {
       if (res.ok && new URL(e.request.url).origin === location.origin) {
         const copy = res.clone();
         caches.open(CACHE).then(c => c.put(e.request, copy));
