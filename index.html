@@ -308,7 +308,7 @@ nav.tabs button{font-size:11px}
 
   <section class="view" id="v-rent">
     <div class="stats">
-      <div class="card stat"><b class="money" id="rExpected">0</b><span>المتوقع هذا الشهر</span></div>
+      <div class="card stat"><b class="money" id="rExpected">0</b><span>مستحق هذا الشهر</span></div>
       <div class="card stat"><b class="money" id="rCollected">0</b><span>المحصّل هذا الشهر</span></div>
       <div class="card stat"><b class="money" id="rLate">0</b><span>المتأخر</span></div>
     </div>
@@ -1297,14 +1297,17 @@ function renderRents(){
   const pool = state.tenants.filter(t=>rentProp==='all' || t.prop===rentProp);
   const today = todayStr(), mStart = today.slice(0,8)+'01', mEnd = addMonths(mStart,1,1);
   // المحصّل هذا الشهر
-  let collected = 0, outstanding = 0, overdueAmt = 0;
+  let collected = 0, dueMonth = 0, overdueAmt = 0;
   pool.forEach(t=>{
     (t.log||[]).forEach(l=>{ if(l.date>=mStart && l.date<mEnd) collected += l.amount; });
+    // أشهر هذا الشهر المدفوعة مسبقاً (من سجل التحصيل)
+    (t.log||[]).forEach(l=>{ for(let i=0;i<(l.months||1);i++){ const d = addMonths(l.prevNext,i,t.day); if(d>=mStart && d<mEnd) dueMonth += l.amount/(l.months||1); } });
     if(t.status!=='active') return;
-    let n = 0; while(n<120){ const d = addMonths(t.next,n,t.day); if(d>=mEnd || (t.end && d>=t.end)) break; outstanding += t.rent; n++; }
+    // الأشهر غير المدفوعة التي يحل موعدها هذا الشهر (المتأخر من الأشهر السابقة يُحسب في «المتأخر» فقط)
+    let n = 0; while(n<120){ const d = addMonths(t.next,n,t.day); if(d>=mEnd || (t.end && d>=t.end)) break; if(d>=mStart) dueMonth += t.rent; n++; }
     overdueAmt += overdueMonths(t) * t.rent;
   });
-  $('rExpected').textContent = fmt(r3(collected+outstanding));
+  $('rExpected').textContent = fmt(r3(dueMonth));
   $('rCollected').textContent = fmt(r3(collected));
   $('rLate').textContent = fmt(r3(overdueAmt));
   $('rLate').style.color = overdueAmt>0 ? 'var(--danger)' : '';
