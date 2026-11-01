@@ -164,6 +164,26 @@ nav.tabs button.on{color:var(--accent)}
 .back{display:flex;align-items:center;gap:4px;color:var(--accent);font-weight:600;font-size:14px;margin:-4px 0 10px}
 .back svg{width:18px;height:18px}
 .chip:disabled{opacity:.35}
+#reportDoc{background:#fff;color:#111;border-radius:12px;padding:18px 16px;font-size:13px;line-height:1.6}
+#reportDoc h1{font-size:18px;margin:0 0 2px}
+#reportDoc .meta{color:#555;font-size:12px;margin-bottom:12px}
+#reportDoc h3{font-size:14px;margin:16px 0 6px;padding-bottom:4px;border-bottom:2px solid #111}
+#reportDoc table{width:100%;border-collapse:collapse}
+#reportDoc td,#reportDoc th{padding:5px 4px;border-bottom:1px solid #e5e5e5;text-align:right;vertical-align:top}
+#reportDoc th{font-weight:700;color:#444;font-size:12px}
+#reportDoc td.m,#reportDoc th.m{text-align:left;direction:ltr;font-variant-numeric:tabular-nums;white-space:nowrap}
+#reportDoc tr.tot td{font-weight:700;border-top:2px solid #111;border-bottom:none}
+#reportDoc .sum{display:grid;grid-template-columns:1fr auto;gap:4px 10px;margin-top:6px}
+#reportDoc .sum .m{direction:ltr;text-align:left;font-variant-numeric:tabular-nums}
+#reportDoc .sum .big{font-size:16px;font-weight:800;border-top:2px solid #111;padding-top:6px}
+#reportDoc .note{background:#f3f4f6;border-radius:8px;padding:8px 10px;font-size:12px;color:#333;margin-top:10px}
+#reportDoc .muted{color:#888}
+@media print{
+  body *{visibility:hidden!important}
+  #reportDoc,#reportDoc *{visibility:visible!important}
+  #reportDoc{position:absolute;inset:0 auto auto 0;width:100%;border-radius:0;padding:24px}
+  .modal-bg,.modal{position:static!important;background:none!important;max-height:none!important;overflow:visible!important}
+}
 .cal-title{font-size:16px;font-weight:600;display:flex;align-items:center;gap:4px;padding:4px 8px;border-radius:8px}
 .cal-title::after{content:'';width:6px;height:6px;border-left:2px solid var(--muted);border-bottom:2px solid var(--muted);transform:rotate(-45deg);margin-top:-3px}
 .cal-title.up::after{transform:rotate(135deg);margin-top:3px}
@@ -210,7 +230,7 @@ nav.tabs button{font-size:11px}
 .hdr-btns{display:flex;gap:8px}
 .toggle-row{display:flex;justify-content:space-between;align-items:center;padding:4px 0}
 .toggle-row span{font-weight:500}
-.toast{position:fixed;top:calc(14px + env(safe-area-inset-top));left:50%;transform:translateX(-50%);background:var(--ink);color:var(--bg);padding:8px 16px;border-radius:8px;font-size:13px;opacity:0;transition:.2s;pointer-events:none;z-index:40;max-width:90%;text-align:center}
+.toast{position:fixed;top:calc(14px + env(safe-area-inset-top));left:50%;transform:translateX(-50%);background:var(--ink);color:var(--bg);padding:8px 16px;border-radius:8px;font-size:13px;opacity:0;transition:.2s;pointer-events:none;z-index:99999;max-width:90%;text-align:center}
 .toast.show{opacity:1}
 </style>
 </head>
@@ -274,7 +294,14 @@ nav.tabs button{font-size:11px}
       <div class="card bal">
         <span class="lbl">إجمالي الرصيد</span>
         <div class="amt money" id="ovBal">0.000</div>
-        <div class="btns"><button class="btn ghost" id="ovTransfer">تحويل بين التصنيفات</button></div>
+        <div class="btns">
+          <button class="btn soft" id="ovAddDebt">إضافة دائن</button>
+          <button class="btn ghost" id="ovDebts">بيانات الدائنين</button>
+        </div>
+        <div class="btns" style="margin-top:8px">
+          <button class="btn ghost" id="ovTransfer">تحويل بين التصنيفات</button>
+          <button class="btn ghost" id="ovReport">تقارير المالك</button>
+        </div>
       </div>
       <div class="stats" style="grid-template-columns:1fr 1fr">
         <div class="card stat"><b class="money" id="ovRemain">0</b><span>إجمالي الالتزامات المتبقية</span></div>
@@ -290,11 +317,15 @@ nav.tabs button{font-size:11px}
         <div class="amt money" id="balAmt">0.000</div>
         <div class="btns">
           <button class="btn" id="addIncome">إضافة دخل</button>
-          <button class="btn soft" id="addDebt">إضافة دائن</button>
+          <button class="btn soft" id="catReport">تقرير المالك</button>
         </div>
         <div class="btns" style="margin-top:8px">
           <button class="btn ghost" id="editBal">تعديل الرصيد</button>
           <button class="btn ghost" id="catTransfer">تحويل</button>
+        </div>
+        <div class="btns" id="soloDebtBtns" style="margin-top:8px">
+          <button class="btn ghost" id="addDebt">إضافة دائن</button>
+          <button class="btn ghost" id="soloDebts">بيانات الدائنين</button>
         </div>
       </div>
       <div class="stats" style="grid-template-columns:1fr 1fr">
@@ -304,7 +335,6 @@ nav.tabs button{font-size:11px}
       <div class="seg" id="billFilters">
         <button class="on" data-f="open">الحالية</button>
         <button data-f="paid">المدفوعة</button>
-        <button data-f="debts">الديون</button>
       </div>
       <div class="list" id="billList"></div>
     </div>
@@ -550,6 +580,7 @@ nav.tabs button{font-size:11px}
     <div><label for="dReason">السبب (اختياري)</label><input id="dReason" placeholder="مثال: أغراض البيت من السوق" autocomplete="off"></div>
     <div><label for="dDate">تاريخ الدين (اختياري)</label><input type="date" id="dDate"></div>
     <div class="toggle-row" id="dAdjRow"><span id="dAdjLbl" style="font-size:14px"></span><button class="switch" id="dAdj" aria-label="تحديث الرصيد"></button></div>
+    <div id="dAccWrap" style="display:none"><span class="lbl">من أي حساب؟</span><div class="chips" id="dAcc" style="flex-wrap:wrap;margin:0"></div></div>
     <div id="dLogWrap"><span class="lbl">سجل السداد</span><div class="card" style="padding:4px 12px"><div class="paylog" id="dLog"></div></div></div>
     <div class="actions">
       <button class="btn danger-ghost" id="dDel">حذف</button>
@@ -569,9 +600,61 @@ nav.tabs button{font-size:11px}
     </div>
     <div id="sOtherWrap" style="display:none"><label for="sAmount">المبلغ (ر.ع)</label><input id="sAmount" class="calc-in" autocomplete="off"><div class="calc-prev"></div></div>
     <div class="card" id="sAfter" style="padding:10px 14px;font-size:13px;color:var(--ink2);background:var(--bg)"></div>
+    <div id="sAccWrap"><span class="lbl" id="sAccLbl">الحساب</span><div class="chips" id="sAcc" style="flex-wrap:wrap;margin:0"></div></div>
     <div class="hint" id="sHint"></div>
     <div><label for="sDate">التاريخ</label><input type="date" id="sDate"></div>
     <div class="actions"><span></span><div><button class="btn ghost" id="sCancel">إلغاء</button><button class="btn" id="sSave">تأكيد</button></div></div>
+  </div>
+</div>
+
+<!-- بيانات الدائنين -->
+<div class="modal-bg" id="debtsModal">
+  <div class="modal">
+    <div style="display:flex;justify-content:space-between;align-items:center">
+      <h2>بيانات الدائنين</h2>
+      <button class="icon-btn" id="dlClose" aria-label="إغلاق"><svg><use href="#i-x"/></svg></button>
+    </div>
+    <div class="list" id="debtList"></div>
+    <button class="btn block" id="dlAdd"><svg><use href="#i-plus"/></svg>إضافة دائن</button>
+  </div>
+</div>
+
+<!-- تقرير المالك -->
+<div class="modal-bg" id="reportModal">
+  <div class="modal" style="max-height:96vh">
+    <div style="display:flex;justify-content:space-between;align-items:center" class="no-print">
+      <h2>تقرير المالك</h2>
+      <button class="icon-btn" id="rpClose" aria-label="إغلاق"><svg><use href="#i-x"/></svg></button>
+    </div>
+    <div class="no-print" style="display:flex;flex-direction:column;gap:10px">
+      <div class="chips" id="rpCats" style="flex-wrap:wrap;margin:0"></div>
+      <div class="seg" id="rpType" style="margin:0"><button class="on" data-t="m">شهري</button><button data-t="y">سنوي</button></div>
+      <div class="cal-head" style="padding:0">
+        <button id="rpPrev" aria-label="السابق"><svg><use href="#i-right"/></svg></button>
+        <b id="rpPeriod"></b>
+        <button id="rpNext" aria-label="التالي"><svg><use href="#i-left"/></svg></button>
+      </div>
+      <div><label for="rpOwner">اسم المالك</label><input id="rpOwner" placeholder="مثال: الشيخ سالم" autocomplete="off"></div>
+    </div>
+    <div id="reportDoc"></div>
+    <div class="no-print" style="display:flex;flex-direction:column;gap:8px">
+      <div class="grid2">
+        <button class="btn block" id="rpShare"><svg><use href="#i-up"/></svg>مشاركة</button>
+        <button class="btn soft block" id="rpPrint"><svg><use href="#i-notes"/></svg>طباعة / PDF</button>
+      </div>
+      <button class="btn ghost block" id="rpPayout">تسجيل تسليم الصافي للمالك</button>
+    </div>
+  </div>
+</div>
+
+<!-- تسليم للمالك -->
+<div class="modal-bg" id="payoutModal">
+  <div class="modal">
+    <h2>تسليم مبلغ للمالك</h2>
+    <div class="hint" id="poInfo" style="font-size:14px;color:var(--ink2)"></div>
+    <div><label for="poAmount">المبلغ (ر.ع)</label><input id="poAmount" class="calc-in" autocomplete="off"><div class="calc-prev"></div></div>
+    <div><label for="poDate">التاريخ</label><input type="date" id="poDate"></div>
+    <div class="actions"><span></span><div><button class="btn ghost" id="poCancel">إلغاء</button><button class="btn" id="poSave">تسجيل</button></div></div>
   </div>
 </div>
 
@@ -620,6 +703,12 @@ nav.tabs button{font-size:11px}
       <input id="propName" placeholder="اسم التصنيف، مثل: شخصي أو عمارة المعبيلة" maxlength="30">
       <div class="swatches" id="propColors"></div>
       <button class="btn block" id="propAdd"><svg><use href="#i-plus"/></svg>إضافة التصنيف</button>
+    </div>
+    <div class="set-sec" id="commSec">
+      <h3>عمولة الإدارة</h3>
+      <div class="hint">عند تحصيل أي إيجار تُحوَّل العمولة مباشرة إلى الحساب الشخصي، والباقي إلى رصيد العمارة.</div>
+      <div><span class="lbl">الحساب الشخصي</span><div class="chips" id="personalChips" style="flex-wrap:wrap;margin:0"></div></div>
+      <div class="toggle-row"><span>نسبة العمولة من الإيجار %</span><input id="commPct" inputmode="decimal" style="width:90px;text-align:center" autocomplete="off"></div>
     </div>
     <div class="set-sec">
       <h3>الإشعارات</h3>
@@ -690,7 +779,8 @@ function normalize(d){
     balances: (d.balances && typeof d.balances==='object') ? d.balances : {},
     tenants: Array.isArray(d.tenants)?d.tenants:[],
     debts: Array.isArray(d.debts)?d.debts:[],
-    settings: Object.assign({showNotes:true, showRents:false}, d.settings||{})
+    ledger: Array.isArray(d.ledger)?d.ledger:[],
+    settings: Object.assign({showNotes:true, showRents:false, commissionPct:5, personalCat:''}, d.settings||{})
   };
 }
 let state = normalize();
@@ -724,7 +814,8 @@ function setCalcIn(id, val){ const el = $(id); el.value = val; el.dispatchEvent(
 
 /* ---------- عام ---------- */
 function toast(t){ const el=$('toast'); el.textContent=t; el.classList.add('show'); clearTimeout(el._t); el._t=setTimeout(()=>el.classList.remove('show'),2200); }
-const show = id => $(id).classList.add('show');
+let zTop = 20;
+const show = id => { const el = $(id); el.style.zIndex = ++zTop; el.classList.add('show'); };
 const hide = id => $(id).classList.remove('show');
 let confirmCb = null;
 function ask(msg, cb, yes='حذف'){ $('cMsg').textContent = msg; $('cYes').textContent = yes; confirmCb = cb; show('confirmModal'); }
@@ -1040,7 +1131,7 @@ const catName = id => id ? (propById(id)?.name || 'بدون تصنيف') : 'بد
 // الكيانات المالية: التصنيفات + «بدون تصنيف» إذا كان عليه رصيد أو التزامات
 function finEntities(){
   const list = state.props.map(p=>({id:p.id, name:p.name, color:p.color}));
-  const general = state.props.length===0 || Math.abs(state.balance)>0.0005 || state.bills.some(b=>!billCat(b)) || state.tenants.some(t=>!propById(t.prop)) || state.debts.some(d=>!dCat(d) && dRem(d)>0);
+  const general = state.props.length===0 || Math.abs(state.balance)>0.0005 || state.bills.some(b=>!billCat(b)) || state.tenants.some(t=>!propById(t.prop));
   if(general && state.props.length) list.push({id:'', name:'بدون تصنيف', color:'var(--muted)'});
   return list;
 }
@@ -1104,7 +1195,6 @@ function renderFin(){
         <span class="row">الالتزامات المتبقية<b class="money">${fmt(rem)}</b></span>
         <span class="row">بعد السداد<b class="money" style="${bal-rem<0?'color:var(--danger)':''}">${fmt(bal-rem)}</b></span>
         <span class="row">التزامات حالية<b>${open}</b></span>
-        ${(()=>{ const ow = r3(state.debts.filter(d=>dCat(d)===g.id && d.dir!=='owe').reduce((s,d)=>s+dRem(d),0)); return ow>0 ? `<span class="row">ديون لك<b class="money" style="color:var(--ok)">${fmt(ow)}</b></span>` : ''; })()}
       </button>`;
     }).join('');
     return;
@@ -1119,18 +1209,8 @@ function renderFin(){
   const remain = r3(pool.reduce((s,b)=>s+remOf(b),0));
   setAmt($('fRemain'), remain); $('fRemain').style.color='';
   setAmt($('fAfter'), r3(bal - remain));
-  const debts = state.debts.filter(d=>dCat(d)===id);
-  const owedSum = r3(debts.filter(d=>d.dir!=='owe').reduce((s,d)=>s+dRem(d),0)), oweSum = r3(debts.filter(d=>d.dir==='owe').reduce((s,d)=>s+dRem(d),0));
-  $('billFilters').querySelector('[data-f=debts]').textContent = debts.some(d=>dRem(d)>0) ? `الديون (${debts.filter(d=>dRem(d)>0).length})` : 'الديون';
-  if(billFilter==='debts'){
-    const open = debts.filter(d=>dRem(d)>0).sort((a,b)=>(b.date||'').localeCompare(a.date||''));
-    const closed = debts.filter(d=>dRem(d)<=0);
-    let html = '';
-    if(open.length) html += `<div class="card" style="padding:12px 14px;display:flex;justify-content:space-between;font-size:13px;color:var(--muted)"><span>لك عند الآخرين <b class="money" style="color:var(--ok)">${fmt(owedSum)}</b></span><span>عليك للآخرين <b class="money" style="color:var(--danger)">${fmt(oweSum)}</b></span></div>` + open.map(debtHTML).join('');
-    if(closed.length) html += `<div class="group">مسددة</div>` + closed.map(debtHTML).join('');
-    $('billList').innerHTML = html || `<div class="empty">${ico('wallet')}<div>لا توجد ديون، اضغط «إضافة دائن»</div></div>`;
-    return;
-  }
+  $('soloDebtBtns').style.display = hasCats ? 'none' : 'flex';
+  if(billFilter==='debts') billFilter='open';
   let list = pool.filter(b=> billFilter==='open' ? !isPaid(b) : isPaid(b));
   if(billFilter==='open') list.sort((a,b)=>(a.due||'9999').localeCompare(b.due||'9999') || b.created-a.created);
   else list.sort((a,b)=>{ const la = a.payments.length?a.payments[a.payments.length-1].date:''; const lb = b.payments.length?b.payments[b.payments.length-1].date:''; return lb.localeCompare(la); });
@@ -1164,7 +1244,7 @@ $('blCancel').onclick = ()=>hide('balModal');
 $('blSave').onclick = safe(()=>{
   const v = calcEval($('blAmount').value), id = finView || '';
   if(isNaN(v)){ toast('اكتب مبلغاً صحيحاً'); return; }
-  if(balMode==='add'){ if(v<=0){ toast('اكتب مبلغاً أكبر من صفر'); return; } addBal(id, v); toast('تمت إضافة الدخل'); }
+  if(balMode==='add'){ if(v<=0){ toast('اكتب مبلغاً أكبر من صفر'); return; } addBal(id, v); state.ledger.push({id:uid(), type:'income', cat:id, amount:v, date:todayStr()}); toast('تمت إضافة الدخل'); }
   else { setBal(id, v); toast('تم تعديل الرصيد'); }
   save(); hide('balModal'); renderFin();
 });
@@ -1194,6 +1274,7 @@ $('trSave').onclick = safe(()=>{
   if(isNaN(v) || v<=0){ toast('اكتب مبلغ التحويل'); return; }
   if(trFrom===trTo){ toast('اختر تصنيفين مختلفين'); return; }
   addBal(trFrom, -v); addBal(trTo, v);
+  state.ledger.push({id:uid(), type:'transfer', from:trFrom, to:trTo, amount:v, date:todayStr()});
   save(); hide('trModal'); renderFin();
   toast(`تم تحويل ${fmt(v)} ر.ع من ${catName(trFrom)} إلى ${catName(trTo)}`);
 });
@@ -1322,7 +1403,31 @@ function bindDebtList(el){
     if(e.target.closest('[data-act=settle]')) openSettle(d); else openDebt(d);
   }));
 }
-bindDebtList($('billList'));
+bindDebtList($('debtList'));
+function personalCat(){ const id = state.settings.personalCat; if(id && propById(id)) return id; const g = state.props.find(p=>/شخص/.test(p.name)); return g ? g.id : ''; }
+function defaultAcc(){ return personalCat() || (state.props[0]?.id) || ''; }
+function drawAccChips(elId, sel){
+  const ents = finEntities();
+  $(elId).innerHTML = ents.map(g=>`<button type="button" class="chip ${sel===g.id?'on':''}" style="--c:${g.color}" data-id="${g.id}"><i style="background:${g.color}"></i>${esc(g.name)}</button>`).join('');
+  $(elId).dataset.sel = sel;
+}
+function bindAccChips(elId, onPick){ $(elId).onclick = e=>{ const b = e.target.closest('.chip'); if(!b) return; drawAccChips(elId, b.dataset.id); onPick && onPick(); }; }
+bindAccChips('dAcc'); bindAccChips('sAcc', ()=>renderSettle());
+function renderDebts(){
+  const open = state.debts.filter(d=>dRem(d)>0).sort((a,b)=>(b.date||'').localeCompare(a.date||''));
+  const closed = state.debts.filter(d=>dRem(d)<=0);
+  const owedSum = r3(open.filter(d=>d.dir!=='owe').reduce((s,d)=>s+dRem(d),0)), oweSum = r3(open.filter(d=>d.dir==='owe').reduce((s,d)=>s+dRem(d),0));
+  let html = `<div class="card" style="padding:12px 14px;display:flex;justify-content:space-between;font-size:13px;color:var(--muted)"><span>لك عند الآخرين <b class="money" style="color:var(--ok)">${fmt(owedSum)}</b></span><span>عليك للآخرين <b class="money" style="color:var(--danger)">${fmt(oweSum)}</b></span></div>`;
+  html += open.map(debtHTML).join('');
+  if(closed.length) html += `<div class="group">مسددة</div>` + closed.map(debtHTML).join('');
+  if(!open.length && !closed.length) html = `<div class="empty">${ico('wallet')}<div>لا يوجد دائنون بعد</div></div>`;
+  $('debtList').innerHTML = html;
+}
+function openDebts(){ renderDebts(); show('debtsModal'); }
+$('ovDebts').onclick = openDebts; $('soloDebts').onclick = openDebts;
+$('dlClose').onclick = ()=>hide('debtsModal');
+$('dlAdd').onclick = ()=>openDebt(null);
+$('ovAddDebt').onclick = ()=>openDebt(null);
 
 // نافذة الدين
 let editingDebt = null, debtDir = 'owed', debtAdj = false;
@@ -1330,6 +1435,8 @@ function drawDebtDir(){
   document.querySelectorAll('#dDir .opt').forEach(o=>o.classList.toggle('on', o.dataset.m===debtDir));
   $('dAdj').classList.toggle('on', debtAdj);
   $('dAdjLbl').textContent = debtDir==='owed' ? 'دفعته من رصيدي (يُخصم الآن)' : 'استلمته في رصيدي (يُضاف الآن)';
+  $('dAccWrap').style.display = debtAdj && state.props.length ? 'block' : 'none';
+  $('dAccWrap').querySelector('.lbl').textContent = debtDir==='owed' ? 'من أي حساب؟' : 'إلى أي حساب؟';
 }
 $('dDir').onclick = e=>{ const o = e.target.closest('.opt'); if(!o) return; debtDir = o.dataset.m; drawDebtDir(); };
 $('dAdj').onclick = ()=>{ debtAdj = !debtAdj; drawDebtDir(); };
@@ -1347,6 +1454,7 @@ function openDebt(d){
   const log = d ? (d.paid||[]) : [];
   $('dLogWrap').style.display = log.length ? 'block' : 'none';
   $('dLog').innerHTML = log.slice().reverse().map(p=>`<div><span class="money">${fmt(p.amount)} ر.ع</span><span style="color:var(--muted);font-size:13px">${niceDate(p.date)}</span><button data-pid="${p.id}" aria-label="حذف">${ico('x')}</button></div>`).join('');
+  drawAccChips('dAcc', defaultAcc());
   drawDebtDir();
   show('debtModal');
   if(!d) setTimeout(()=>$('dName').focus(), 80);
@@ -1361,14 +1469,12 @@ $('dSave').onclick = safe(()=>{
   const data = {name, amount, reason:$('dReason').value.trim(), date:$('dDate').value};
   if(editingDebt){ Object.assign(state.debts.find(x=>x.id===editingDebt), data); toast('تم حفظ التعديلات'); }
   else {
-    const cat = finView || '';
-    state.debts.unshift({id:uid(), created:Date.now(), dir:debtDir, cat, paid:[], ...data});
+    const cat = state.props.length ? ($('dAcc').dataset.sel||'') : '';
+    state.debts.unshift({id:uid(), created:Date.now(), dir:debtDir, paid:[], adj: debtAdj ? {cat, amount} : null, ...data});
     if(debtAdj) addBal(cat, debtDir==='owed' ? -amount : amount);
     toast('تمت الإضافة');
   }
-  billFilter = 'debts';
-  document.querySelectorAll('#billFilters button').forEach(x=>x.classList.toggle('on',x.dataset.f==='debts'));
-  save(); hide('debtModal'); renderFin();
+  save(); hide('debtModal'); renderFin(); renderDebts();
 });
 $('dLog').onclick = e=>{
   const btn = e.target.closest('button[data-pid]'); if(!btn) return;
@@ -1378,12 +1484,12 @@ $('dLog').onclick = e=>{
   ask(`حذف دفعة ${fmt(p.amount)} ر.ع؟ سيتم عكس أثرها على الرصيد.`, ()=>{
     d.paid = d.paid.filter(x=>x.id!==p.id);
     addBal(p.cat ?? dCat(d), d.dir==='owe' ? p.amount : -p.amount);
-    save(); renderFin(); openDebt(d); toast('تم الحذف');
+    save(); renderFin(); renderDebts(); openDebt(d); toast('تم الحذف');
   });
 };
 $('dDel').onclick = ()=>{
   const id = editingDebt; hide('debtModal');
-  ask('حذف هذا الدين؟ لن تتغير المبالغ المسجلة في الرصيد.', ()=>{ state.debts = state.debts.filter(x=>x.id!==id); save(); renderFin(); toast('تم الحذف'); });
+  ask('حذف هذا الدين؟ لن تتغير المبالغ المسجلة في الرصيد.', ()=>{ state.debts = state.debts.filter(x=>x.id!==id); save(); renderFin(); renderDebts(); toast('تم الحذف'); });
 };
 
 // الاستلام / السداد
@@ -1393,7 +1499,7 @@ function renderSettle(){
   const d = state.debts.find(x=>x.id===settling); if(!d) return;
   document.querySelectorAll('#sOpts .opt').forEach(o=>o.classList.toggle('on', o.dataset.m===setMode));
   $('sOtherWrap').style.display = setMode==='other' ? 'block' : 'none';
-  const v = setAmount(), rem = dRem(d), owed = d.dir!=='owe', bal = balOf(dCat(d));
+  const v = setAmount(), rem = dRem(d), owed = d.dir!=='owe', bal = balOf($('sAcc').dataset.sel||'');
   if(isNaN(v) || v<=0){ $('sAfter').textContent = 'اكتب المبلغ'; return; }
   if(v > rem + 0.0005){ $('sAfter').innerHTML = `<span style="color:var(--danger)">المبلغ أكبر من الباقي (${fmt(rem)} ر.ع)</span>`; return; }
   $('sAfter').innerHTML = `بعدها: الباقي <b class="money">${fmt(rem-v)}</b> · الرصيد <b class="money">${fmt(owed?bal+v:bal-v)}</b> ر.ع`;
@@ -1405,7 +1511,10 @@ function openSettle(d){
   $('smTitle').textContent = (owed ? 'استلام من: ' : 'سداد إلى: ') + d.name;
   $('smNums').innerHTML = `<div>المبلغ<b class="money">${fmt(d.amount)}</b></div><div>${owed?'المستلم':'المسدد'}<b class="money">${fmt(dPaid(d))}</b></div><div class="rem">الباقي<b class="money">${fmt(dRem(d))}</b></div>`;
   $('sFullAmt').textContent = fmt(dRem(d));
-  $('sHint').textContent = owed ? 'سيُضاف المبلغ إلى الرصيد.' : 'سيُخصم المبلغ من الرصيد.';
+  $('sHint').textContent = '';
+  $('sAccWrap').style.display = state.props.length ? 'block' : 'none';
+  $('sAccLbl').textContent = owed ? 'يُضاف المبلغ إلى حساب:' : 'يُخصم المبلغ من حساب:';
+  drawAccChips('sAcc', defaultAcc());
   setCalcIn('sAmount',''); $('sDate').value = todayStr();
   show('settleModal'); renderSettle();
 }
@@ -1417,12 +1526,133 @@ $('sSave').onclick = safe(()=>{
   const v = setAmount(), rem = dRem(d);
   if(isNaN(v) || v<=0){ toast('اكتب المبلغ'); return; }
   if(v > rem + 0.0005){ toast(`المبلغ أكبر من الباقي (${fmt(rem)})`); return; }
-  const cat = dCat(d);
+  const cat = state.props.length ? ($('sAcc').dataset.sel||'') : '';
   d.paid = d.paid || [];
   d.paid.push({id:uid(), amount:v, date:$('sDate').value || todayStr(), cat});
   addBal(cat, d.dir==='owe' ? -v : v);
-  save(); hide('settleModal'); renderFin();
+  save(); hide('settleModal'); renderFin(); renderDebts();
   toast(dRem(d)<=0 ? 'تم السداد بالكامل' : `تم، الباقي ${fmt(dRem(d))} ر.ع`);
+});
+
+/* ---------- تقارير المالك ---------- */
+let rpCat = '', rpType = 'm', rpY = now.getFullYear(), rpM = now.getMonth();
+function rpRange(){
+  if(rpType==='m'){ const s = `${rpY}-${pad(rpM+1)}-01`; return [s, addMonths(s,1,1)]; }
+  return [`${rpY}-01-01`, `${rpY+1}-01-01`];
+}
+function rpData(cat, from, to){
+  const inR = d => d && d>=from && d<to;
+  const rents = [];
+  state.tenants.filter(t=>t.prop===cat).forEach(t=>(t.log||[]).forEach(l=>{ if(inR(l.date)) rents.push({unit:t.unit, name:t.name, months:l.months||1, date:l.date, amount:l.amount, commission:l.commission||0, pct:l.pct||0}); }));
+  rents.sort((a,b)=>a.date.localeCompare(b.date));
+  const exps = [];
+  state.bills.filter(b=>billCat(b)===cat).forEach(b=>(b.payments||[]).forEach(p=>{ if(inR(p.date)) exps.push({name:b.name, date:p.date, amount:p.amount}); }));
+  exps.sort((a,b)=>a.date.localeCompare(b.date));
+  const other = state.ledger.filter(l=>l.type==='income' && l.cat===cat && inR(l.date));
+  const payouts = state.ledger.filter(l=>l.type==='owner' && l.cat===cat && inR(l.date));
+  const sum = a => r3(a.reduce((s,x)=>s+x.amount,0));
+  const gross = sum(rents), comm = r3(rents.reduce((s,x)=>s+x.commission,0)), exp = sum(exps), oth = sum(other), paid = sum(payouts);
+  const net = r3(gross - comm - exp + oth);
+  return {rents, exps, other, payouts, gross, comm, exp, oth, paid, net, due: r3(net - paid)};
+}
+const rpDate = s => { const d = new Date(s+'T00:00'); return `${d.getDate()}/${d.getMonth()+1}/${d.getFullYear()}`; };
+const unitLbl = r => `${r.unit ? 'شقة ' + r.unit : 'وحدة'}${r.name ? ' – ' + r.name : ''}`;
+function rpPctLabel(d){ const ps = [...new Set(d.rents.filter(r=>r.pct).map(r=>r.pct))]; const p = ps.length===1 ? ps[0] : (ps.length ? null : Number(state.settings.commissionPct)||0); return p===null ? '' : ` (${p}٪)`; }
+function renderReport(){
+  if(!propById(rpCat)) rpCat = state.props.find(p=>p.id!==personalCat())?.id || state.props[0]?.id || '';
+  $('rpCats').innerHTML = state.props.map(g=>`<button type="button" class="chip ${rpCat===g.id?'on':''}" style="--c:${g.color}" data-id="${g.id}"><i style="background:${g.color}"></i>${esc(g.name)}</button>`).join('');
+  document.querySelectorAll('#rpType button').forEach(b=>b.classList.toggle('on', b.dataset.t===rpType));
+  $('rpPeriod').textContent = rpType==='m' ? `${MONTHS[rpM]} ${rpY}` : String(rpY);
+  const prop = propById(rpCat);
+  if(document.activeElement!==$('rpOwner')) $('rpOwner').value = prop?.owner || '';
+  const [from, to] = rpRange(), d = rpData(rpCat, from, to);
+  const owner = prop?.owner ? esc(prop.owner) : '<span class="muted">—</span>';
+  const money = v => `<td class="m">${fmt(v)}</td>`;
+  let html = `<h1>${rpType==='m'?'التقرير الشهري':'التقرير السنوي'} — ${esc(prop?.name||'')}</h1>
+    <div class="meta">المالك: ${owner} · الفترة: ${rpType==='m'?`${MONTHS[rpM]} ${rpY}`:`سنة ${rpY}`} · تاريخ الإصدار: ${rpDate(todayStr())} · المبالغ بالريال العماني</div>`;
+  if(rpType==='m'){
+    html += `<h3>الإيجارات المحصّلة</h3>` + (d.rents.length ? `<table><tr><th>الوحدة</th><th>التاريخ</th><th class="m">المبلغ</th></tr>${d.rents.map(r=>`<tr><td>${esc(unitLbl(r))}${r.months>1?` <span class="muted">(${r.months} أشهر)</span>`:''}</td><td>${rpDate(r.date)}</td>${money(r.amount)}</tr>`).join('')}<tr class="tot"><td colspan="2">الإجمالي</td>${money(d.gross)}</tr></table>` : `<div class="muted">لا توجد إيجارات محصّلة في هذه الفترة</div>`);
+    html += `<h3>الصيانة والمصاريف</h3>` + (d.exps.length ? `<table><tr><th>البند</th><th>التاريخ</th><th class="m">المبلغ</th></tr>${d.exps.map(x=>`<tr><td>${esc(x.name)}</td><td>${rpDate(x.date)}</td>${money(x.amount)}</tr>`).join('')}<tr class="tot"><td colspan="2">الإجمالي</td>${money(d.exp)}</tr></table>` : `<div class="muted">لا توجد مصاريف في هذه الفترة</div>`);
+    if(d.other.length) html += `<h3>دخل آخر</h3><table>${d.other.map(x=>`<tr><td>دخل مضاف</td><td>${rpDate(x.date)}</td>${money(x.amount)}</tr>`).join('')}</table>`;
+  } else {
+    let rows = '', T = {g:0,c:0,e:0,n:0};
+    for(let m=0;m<12;m++){
+      const s = `${rpY}-${pad(m+1)}-01`, md = rpData(rpCat, s, addMonths(s,1,1));
+      T.g+=md.gross; T.c+=md.comm; T.e+=md.exp; T.n+=md.net;
+      rows += `<tr><td>${MONTHS[m]}</td>${money(md.gross)}${money(md.comm)}${money(md.exp)}${money(md.net)}</tr>`;
+    }
+    html += `<h3>ملخص الأشهر</h3><table><tr><th>الشهر</th><th class="m">الإيجارات</th><th class="m">العمولة</th><th class="m">المصاريف</th><th class="m">الصافي</th></tr>${rows}<tr class="tot"><td>الإجمالي</td>${money(T.g)}${money(T.c)}${money(T.e)}${money(T.n)}</tr></table>`;
+  }
+  html += `<h3>الملخص</h3><div class="sum">
+    <span>إجمالي الإيجارات المحصّلة</span><span class="m">${fmt(d.gross)}</span>
+    <span>عمولة الإدارة${rpPctLabel(d)}</span><span class="m">− ${fmt(d.comm)}</span>
+    <span>الصيانة والمصاريف</span><span class="m">− ${fmt(d.exp)}</span>
+    ${d.oth?`<span>دخل آخر</span><span class="m">+ ${fmt(d.oth)}</span>`:''}
+    <span class="big">الصافي للمالك</span><span class="m big">${fmt(d.net)}</span>
+    ${d.paid?`<span>المسلَّم للمالك</span><span class="m">${fmt(d.paid)}</span><span><b>المتبقي للتسليم</b></span><span class="m"><b>${fmt(d.due)}</b></span>`:''}
+  </div>`;
+  if(d.comm) html += `<div class="note">عمولة الإدارة تُخصم من كل إيجار عند تحصيله وتُحوَّل مباشرة إلى حساب المستثمر، ولا تدخل رصيد العمارة.</div>`;
+  const today = todayStr(), cur = today>=from && today<to;
+  if(cur){
+    const late = state.tenants.filter(t=>t.prop===rpCat && overdueMonths(t)>0);
+    if(late.length) html += `<h3>إيجارات متأخرة حتى تاريخه</h3><table>${late.map(t=>{ const n = overdueMonths(t); return `<tr><td>${esc(unitLbl(t))}</td><td>${n===1?'شهر':n===2?'شهرين':n+' أشهر'}</td>${money(n*t.rent)}</tr>`; }).join('')}</table>`;
+  }
+  $('reportDoc').innerHTML = html;
+  $('rpPayout').style.display = d.due > 0.0005 ? '' : 'none';
+  $('rpPayout').textContent = `تسجيل تسليم الصافي للمالك (${fmt(d.due)} ر.ع)`;
+}
+function openReport(cat){ if(!state.props.length){ toast('أضف تصنيفاً للعمارة من الإعدادات أولاً'); return; } rpCat = cat || ''; rpType = 'm'; rpY = now.getFullYear(); rpM = now.getMonth(); renderReport(); show('reportModal'); }
+$('ovReport').onclick = ()=>openReport('');
+$('catReport').onclick = ()=>openReport(finView || '');
+$('rpClose').onclick = ()=>hide('reportModal');
+$('rpCats').onclick = e=>{ const b = e.target.closest('.chip'); if(!b) return; rpCat = b.dataset.id; renderReport(); };
+$('rpType').onclick = e=>{ const b = e.target.closest('button[data-t]'); if(!b) return; rpType = b.dataset.t; renderReport(); };
+$('rpPrev').onclick = ()=>{ if(rpType==='y') rpY--; else { rpM--; if(rpM<0){rpM=11;rpY--;} } renderReport(); };
+$('rpNext').onclick = ()=>{ if(rpType==='y') rpY++; else { rpM++; if(rpM>11){rpM=0;rpY++;} } renderReport(); };
+$('rpOwner').addEventListener('input', ()=>{ const p = propById(rpCat); if(!p) return; p.owner = $('rpOwner').value.trim(); save(); renderReport(); });
+function reportText(){
+  const prop = propById(rpCat), [from, to] = rpRange(), d = rpData(rpCat, from, to);
+  const L = [];
+  L.push(`*${rpType==='m'?'التقرير الشهري':'التقرير السنوي'} — ${prop?.name||''}*`);
+  if(prop?.owner) L.push(`المالك: ${prop.owner}`);
+  L.push(`الفترة: ${rpType==='m'?`${MONTHS[rpM]} ${rpY}`:`سنة ${rpY}`}`, '');
+  if(rpType==='m'){
+    L.push('*الإيجارات المحصّلة*');
+    d.rents.length ? d.rents.forEach(r=>L.push(`• ${unitLbl(r)}${r.months>1?` (${r.months} أشهر)`:''}: ${fmt(r.amount)}`)) : L.push('• لا يوجد');
+    L.push('', '*الصيانة والمصاريف*');
+    d.exps.length ? d.exps.forEach(x=>L.push(`• ${x.name}: ${fmt(x.amount)}`)) : L.push('• لا يوجد');
+  } else {
+    L.push('*ملخص الأشهر (إيجارات / مصاريف / صافي)*');
+    for(let m=0;m<12;m++){ const s = `${rpY}-${pad(m+1)}-01`, md = rpData(rpCat, s, addMonths(s,1,1)); if(md.gross||md.exp||md.oth) L.push(`• ${MONTHS[m]}: ${fmt(md.gross)} / ${fmt(md.exp)} / ${fmt(md.net)}`); }
+  }
+  L.push('', '*الملخص*', `إجمالي الإيجارات: ${fmt(d.gross)} ر.ع`, `عمولة الإدارة${rpPctLabel(d)}: ${fmt(d.comm)} ر.ع`, `الصيانة والمصاريف: ${fmt(d.exp)} ر.ع`);
+  if(d.oth) L.push(`دخل آخر: ${fmt(d.oth)} ر.ع`);
+  L.push(`*الصافي للمالك: ${fmt(d.net)} ر.ع*`);
+  if(d.paid) L.push(`المسلَّم للمالك: ${fmt(d.paid)} ر.ع`, `المتبقي للتسليم: ${fmt(d.due)} ر.ع`);
+  if(d.comm) L.push('', 'ملاحظة: عمولة الإدارة تُخصم من كل إيجار عند تحصيله وتُحوَّل مباشرة إلى حساب المستثمر.');
+  return L.join('\n');
+}
+$('rpShare').onclick = async ()=>{
+  const text = reportText();
+  try{ if(navigator.share){ await navigator.share({title:'تقرير المالك', text}); return; } }catch(e){ if(e && e.name==='AbortError') return; }
+  try{ await navigator.clipboard.writeText(text); toast('تم نسخ التقرير، الصقه في الواتساب'); }catch(e){ toast('تعذّرت المشاركة'); }
+};
+$('rpPrint').onclick = ()=>{ try{ window.print(); }catch(e){ toast('الطباعة غير متاحة على هذا الجهاز'); } };
+// تسليم للمالك
+$('rpPayout').onclick = ()=>{
+  const [from, to] = rpRange(), d = rpData(rpCat, from, to), p = propById(rpCat);
+  $('poInfo').textContent = `سيُخصم من رصيد «${p?.name||''}» (${fmt(balOf(rpCat))} ر.ع) ويظهر في التقرير.`;
+  setCalcIn('poAmount', String(d.due));
+  $('poDate').value = todayStr() < to && todayStr() >= from ? todayStr() : addMonths(to,0,1) > todayStr() ? todayStr() : (()=>{ const x = new Date(to+'T00:00'); x.setDate(x.getDate()-1); return ymd(x); })();
+  show('payoutModal');
+};
+$('poCancel').onclick = ()=>hide('payoutModal');
+$('poSave').onclick = safe(()=>{
+  const v = calcEval($('poAmount').value);
+  if(isNaN(v) || v<=0){ toast('اكتب المبلغ'); return; }
+  addBal(rpCat, -v);
+  state.ledger.push({id:uid(), type:'owner', cat:rpCat, amount:v, date:$('poDate').value || todayStr()});
+  save(); hide('payoutModal'); renderReport(); renderFin(); toast('تم تسجيل التسليم للمالك');
 });
 
 /* ---------- الإيجارات ---------- */
@@ -1547,7 +1777,7 @@ $('tnLog').onclick = e=>{
   const l = t.log[t.log.length-1];
   hide('tenantModal');
   ask(`التراجع عن آخر تحصيل (${fmt(l.amount)} ر.ع)؟ سيُخصم من رصيد العمارة ويرجع موعد الاستحقاق.`, ()=>{
-    t.log.pop(); addBal(l.cat ?? (propById(t.prop)?t.prop:''), -l.amount); t.next = l.prevNext;
+    t.log.pop(); addBal(l.cat ?? (propById(t.prop)?t.prop:''), -(l.amount-(l.commission||0))); if(l.commission) addBal(l.commTo, -l.commission); t.next = l.prevNext;
     if(t.status==='ended') t.status='active';
     save(); renderAll(); openTenant(t); toast('تم التراجع');
   }, 'تراجع');
@@ -1576,6 +1806,7 @@ $('tnDel').onclick = ()=>{
 // التحصيل
 let collecting = null, colMonths = 1;
 function renderCollect(){
+  renderCollectSplit();
   const t = state.tenants.find(x=>x.id===collecting); if(!t) return;
   const max = Math.max(1, monthsLeft(t));
   colMonths = Math.min(Math.max(1, colMonths), max);
@@ -1592,19 +1823,33 @@ function openCollect(t){
   $('colTitle').textContent = 'تحصيل: ' + tenantTitle(t).replace(/&[^;]+;/g,'');
   $('colDate').value = todayStr();
   const p = propById(t.prop);
-  $('colTo').textContent = p ? `سيُضاف المبلغ إلى رصيد «${p.name}».` : 'سيُضاف المبلغ إلى الرصيد.';
+
   renderCollect(); show('collectModal');
 }
 $('colMinus').onclick = ()=>{ colMonths--; renderCollect(); };
 $('colPlus').onclick = ()=>{ colMonths++; renderCollect(); };
 $('colCancel').onclick = ()=>hide('collectModal');
+function commFor(t){
+  const pc = personalCat(), pct = Number(state.settings.commissionPct)||0, cat = propById(t.prop) ? t.prop : '';
+  return (pc && pct>0 && cat!==pc) ? {pct, to:pc} : null;
+}
+function renderCollectSplit(){
+  const t = state.tenants.find(x=>x.id===collecting); if(!t) return;
+  const gross = r3(t.rent*colMonths), c = commFor(t), p = propById(t.prop);
+  const bname = p ? p.name : 'الرصيد';
+  if(c){
+    const cm = r3(gross*c.pct/100);
+    $('colTo').innerHTML = `عمولة ${c.pct}٪ <b class="money">${fmt(cm)}</b> ← ${esc(catName(c.to))}<br>الصافي <b class="money">${fmt(gross-cm)}</b> ← ${esc(bname)}`;
+  } else $('colTo').textContent = p ? `سيُضاف المبلغ إلى رصيد «${p.name}».` : 'سيُضاف المبلغ إلى الرصيد.';
+}
 $('colSave').onclick = safe(()=>{
   const t = state.tenants.find(x=>x.id===collecting); if(!t) return;
   const amount = r3(t.rent*colMonths), cat = propById(t.prop) ? t.prop : '';
   t.log = t.log || [];
-  t.log.push({id:uid(), date:$('colDate').value || todayStr(), amount, months:colMonths, prevNext:t.next, cat});
+  const c = commFor(t), commission = c ? r3(amount*c.pct/100) : 0;
+  t.log.push({id:uid(), date:$('colDate').value || todayStr(), amount, months:colMonths, prevNext:t.next, cat, commission, commTo: c ? c.to : '', pct: c ? c.pct : 0});
   t.next = addMonths(t.next, colMonths, t.day);
-  addBal(cat, amount);
+  addBal(cat, amount - commission); if(commission) addBal(c.to, commission);
   save(); hide('collectModal'); renderAll();
   toast(`تم تحصيل ${fmt(amount)} ر.ع` + (needsRenew(t) ? ' · العقد اكتمل' : ''));
 });
@@ -1788,12 +2033,18 @@ Object.keys(MANAGERS).forEach(k=>{
 });
 function renderSettings(){
   renderManager('cat'); renderManager('prop');
+  $('commSec').style.display = state.props.length ? 'flex' : 'none';
+  const pc = personalCat();
+  $('personalChips').innerHTML = state.props.map(g=>`<button type="button" class="chip ${pc===g.id?'on':''}" style="--c:${g.color}" data-id="${g.id}"><i style="background:${g.color}"></i>${esc(g.name)}</button>`).join('');
+  if(document.activeElement!==$('commPct')) $('commPct').value = state.settings.commissionPct;
   $('tglNotes').classList.toggle('on', !!state.settings.showNotes);
   $('tglRents').classList.toggle('on', !!state.settings.showRents);
   renderNotifBtn();
 }
 $('tglNotes').onclick = ()=>{ state.settings.showNotes = !state.settings.showNotes; save(); renderSettings(); applySections(); };
 $('tglRents').onclick = ()=>{ state.settings.showRents = !state.settings.showRents; save(); renderSettings(); applySections(); };
+$('personalChips').onclick = e=>{ const b = e.target.closest('.chip'); if(!b) return; state.settings.personalCat = b.dataset.id; save(); renderSettings(); };
+$('commPct').addEventListener('change', ()=>{ const v = calcEval($('commPct').value); if(isNaN(v) || v<0 || v>100){ toast('اكتب نسبة بين 0 و 100'); $('commPct').value = state.settings.commissionPct; return; } state.settings.commissionPct = v; save(); toast('تم حفظ النسبة: '+v+'٪'); });
 $('openSettings').onclick = ()=>{ renderSettings(); show('settingsModal'); };
 $('sClose').onclick = ()=>{ hide('settingsModal'); renderAll(); };
 
