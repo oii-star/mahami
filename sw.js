@@ -1,4 +1,4 @@
-const CACHE = 'mahami-v1';
+const CACHE = 'mahami-v2';
 const FILES = ['./', './index.html', './manifest.json', './icon-192.png', './icon-512.png', './apple-touch-icon.png'];
 
 self.addEventListener('install', e => {
