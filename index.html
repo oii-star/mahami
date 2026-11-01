@@ -169,14 +169,14 @@ nav.tabs button.on{color:var(--accent)}
 #reportDoc .meta{color:#555;font-size:12px;margin-bottom:12px}
 #reportDoc h3{font-size:14px;margin:16px 0 6px;padding-bottom:4px;border-bottom:2px solid #111}
 #reportDoc table{width:100%;border-collapse:collapse}
-#reportDoc td,#reportDoc th{padding:5px 4px;border-bottom:1px solid #e5e5e5;text-align:right;vertical-align:top}
+#reportDoc td,#reportDoc th{padding:5px 3px;border-bottom:1px solid #e5e5e5;text-align:right;vertical-align:top}
 #reportDoc th{font-weight:700;color:#444;font-size:12px}
 #reportDoc td.m,#reportDoc th.m{text-align:left;direction:ltr;font-variant-numeric:tabular-nums;white-space:nowrap}
 #reportDoc tr.tot td{font-weight:700;border-top:2px solid #111;border-bottom:none}
 #reportDoc .sum{display:grid;grid-template-columns:1fr auto;gap:4px 10px;margin-top:6px}
 #reportDoc .sum .m{direction:ltr;text-align:left;font-variant-numeric:tabular-nums}
 #reportDoc .sum .big{font-size:16px;font-weight:800;border-top:2px solid #111;padding-top:6px}
-#reportDoc .note{background:#f3f4f6;border-radius:8px;padding:8px 10px;font-size:12px;color:#333;margin-top:10px}
+#reportDoc .rnote{background:#f3f4f6;border-radius:8px;padding:8px 10px;font-size:12px;color:#333;margin-top:10px}
 #reportDoc .muted{color:#888}
 @media print{
   body *{visibility:hidden!important}
@@ -706,10 +706,10 @@ nav.tabs button{font-size:11px}
     </div>
     <div class="set-sec" id="commSec">
       <h3>عمولة الإدارة</h3>
-      <div class="hint">عند تحصيل أي إيجار تُحوَّل العمولة مباشرة إلى الحساب الشخصي، والباقي إلى رصيد العمارة. يمكنك تحديد نسبة مختلفة لكل عمارة.</div>
-      <div><span class="lbl">الحساب الشخصي</span><div class="chips" id="personalChips" style="flex-wrap:wrap;margin:0"></div></div>
-      <div class="toggle-row"><span>النسبة الافتراضية %</span><input id="commPct" inputmode="decimal" style="width:90px;text-align:center" autocomplete="off"></div>
-      <div id="bldPctWrap"><span class="lbl">نسبة خاصة لكل عمارة (اتركها فارغة لاستخدام الافتراضية)</span><div class="card" id="bldPct"></div></div>
+      <div class="hint">عند تحصيل أي إيجار تُحوَّل نسبة العمارة مباشرة إلى حساب العمولة، والباقي إلى رصيد العمارة.</div>
+      <div><span class="lbl">١. حساب العمولة (الحساب الذي يستلم النسبة)</span><div class="chips" id="personalChips" style="flex-wrap:wrap;margin:0"></div></div>
+      <div id="bldPctWrap"><span class="lbl">٢. نسبة العمولة لكل عمارة</span><div class="card" id="bldPct"></div></div>
+      <div class="hint" id="bldPctEmpty" style="display:none">أضف عمارة في «تصنيفات المالية» لتحديد نسبتها.</div>
     </div>
     <div class="set-sec">
       <h3>الإشعارات</h3>
@@ -1414,6 +1414,29 @@ function fixTenants(){
   if(bp.length===1) state.tenants.forEach(t=>{ if(!propById(t.prop) || t.prop===pc){ t.prop = bp[0].id; changed = true; } });
   return changed;
 }
+// تصحيح لمرة واحدة: التحصيلات القديمة بدون عمولة أو المسجلة على الحساب الشخصي بالغلط
+function migrateCommission(){
+  if(state.settings.commMigrated) return;
+  const pc = personalCat(); if(!pc){ return; }
+  fixTenants();
+  let n = 0;
+  state.tenants.forEach(t=>{
+    const bp = propById(t.prop); if(!bp || t.prop===pc) return;
+    const pct = Number(bp.commission!=null ? bp.commission : state.settings.commissionPct)||0;
+    (t.log||[]).forEach(l=>{
+      const wrongCat = (l.cat ?? '') !== t.prop;
+      if(l.pct!==undefined && !wrongCat) return;
+      // اعكس الأثر القديم ثم وزّع من جديد
+      addBal(l.cat ?? '', -(l.amount - (l.commission||0))); if(l.commission) addBal(l.commTo, -l.commission);
+      const c = r3(l.amount*pct/100);
+      addBal(t.prop, l.amount - c); if(c) addBal(pc, c);
+      Object.assign(l, {cat:t.prop, commission:c, commTo:c?pc:'', pct});
+      n++;
+    });
+  });
+  state.settings.commMigrated = true; save();
+  if(n) setTimeout(()=>toast(`تم تصحيح العمولة في ${n} تحصيل سابق`), 600);
+}
 function defaultAcc(){ return personalCat() || (state.props[0]?.id) || ''; }
 function drawAccChips(elId, sel){
   const ents = finEntities();
@@ -1580,7 +1603,7 @@ function renderReport(){
   let html = `<h1>${rpType==='m'?'التقرير الشهري':'التقرير السنوي'} — ${esc(prop?.name||'')}</h1>
     <div class="meta">المالك: ${owner} · الفترة: ${rpType==='m'?`${MONTHS[rpM]} ${rpY}`:`سنة ${rpY}`} · تاريخ الإصدار: ${rpDate(todayStr())} · المبالغ بالريال العماني</div>`;
   if(rpType==='m'){
-    html += `<h3>الإيجارات المحصّلة</h3>` + (d.rents.length ? `<table><tr><th>الوحدة</th><th>التاريخ</th><th class="m">المبلغ</th></tr>${d.rents.map(r=>`<tr><td>${esc(unitLbl(r))}${r.months>1?` <span class="muted">(${r.months} أشهر)</span>`:''}</td><td>${rpDate(r.date)}</td>${money(r.amount)}</tr>`).join('')}<tr class="tot"><td colspan="2">الإجمالي</td>${money(d.gross)}</tr></table>` : `<div class="muted">لا توجد إيجارات محصّلة في هذه الفترة</div>`);
+    html += `<h3>الإيجارات المحصّلة</h3>` + (d.rents.length ? `<table><tr><th>الوحدة</th><th>التاريخ</th><th class="m">الإيجار</th><th class="m">العمولة</th></tr>${d.rents.map(r=>`<tr><td>${esc(unitLbl(r))}${r.months>1?` <span class="muted">(${r.months} أشهر)</span>`:''}</td><td>${rpDate(r.date)}</td>${money(r.amount)}${money(r.commission)}</tr>`).join('')}<tr class="tot"><td colspan="2">الإجمالي</td>${money(d.gross)}${money(d.comm)}</tr></table>` : `<div class="muted">لا توجد إيجارات محصّلة في هذه الفترة</div>`);
     html += `<h3>الصيانة والمصاريف</h3>` + (d.exps.length ? `<table><tr><th>البند</th><th>التاريخ</th><th class="m">المبلغ</th></tr>${d.exps.map(x=>`<tr><td>${esc(x.name)}</td><td>${rpDate(x.date)}</td>${money(x.amount)}</tr>`).join('')}<tr class="tot"><td colspan="2">الإجمالي</td>${money(d.exp)}</tr></table>` : `<div class="muted">لا توجد مصاريف في هذه الفترة</div>`);
     if(d.other.length) html += `<h3>دخل آخر</h3><table>${d.other.map(x=>`<tr><td>دخل مضاف</td><td>${rpDate(x.date)}</td>${money(x.amount)}</tr>`).join('')}</table>`;
   } else {
@@ -1600,7 +1623,7 @@ function renderReport(){
     <span class="big">الصافي للمالك</span><span class="m big">${fmt(d.net)}</span>
     ${d.paid?`<span>المسلَّم للمالك</span><span class="m">${fmt(d.paid)}</span><span><b>المتبقي للتسليم</b></span><span class="m"><b>${fmt(d.due)}</b></span>`:''}
   </div>`;
-  if(d.comm) html += `<div class="note">عمولة الإدارة تُخصم من كل إيجار عند تحصيله وتُحوَّل مباشرة إلى حساب المستثمر، ولا تدخل رصيد العمارة.</div>`;
+  if(d.comm) html += `<div class="rnote">عمولة الإدارة تُخصم من كل إيجار عند تحصيله وتُحوَّل مباشرة إلى حساب المستثمر، ولا تدخل رصيد العمارة.</div>`;
   const today = todayStr(), cur = today>=from && today<to;
   if(cur){
     const late = state.tenants.filter(t=>t.prop===rpCat && overdueMonths(t)>0);
@@ -1627,7 +1650,7 @@ function reportText(){
   L.push(`الفترة: ${rpType==='m'?`${MONTHS[rpM]} ${rpY}`:`سنة ${rpY}`}`, '');
   if(rpType==='m'){
     L.push('*الإيجارات المحصّلة*');
-    d.rents.length ? d.rents.forEach(r=>L.push(`• ${unitLbl(r)}${r.months>1?` (${r.months} أشهر)`:''}: ${fmt(r.amount)}`)) : L.push('• لا يوجد');
+    d.rents.length ? d.rents.forEach(r=>L.push(`• ${unitLbl(r)}${r.months>1?` (${r.months} أشهر)`:''}: ${fmt(r.amount)}${r.commission?` (عمولة ${fmt(r.commission)})`:''}`)) : L.push('• لا يوجد');
     L.push('', '*الصيانة والمصاريف*');
     d.exps.length ? d.exps.forEach(x=>L.push(`• ${x.name}: ${fmt(x.amount)}`)) : L.push('• لا يوجد');
   } else {
@@ -2046,25 +2069,29 @@ function renderSettings(){
   renderManager('cat'); renderManager('prop');
   $('commSec').style.display = state.props.length ? 'flex' : 'none';
   const pc = personalCat();
-  $('personalChips').innerHTML = state.props.map(g=>`<button type="button" class="chip ${pc===g.id?'on':''}" style="--c:${g.color}" data-id="${g.id}"><i style="background:${g.color}"></i>${esc(g.name)}</button>`).join('');
-  if(document.activeElement!==$('commPct')) $('commPct').value = state.settings.commissionPct;
+  $('personalChips').innerHTML = state.props.map(g=>`<button type="button" class="chip ${pc===g.id?'on':''}" style="--c:${g.color}" data-id="${g.id}">${pc===g.id?'✓ ':''}<i style="background:${g.color}"></i>${esc(g.name)}</button>`).join('');
   const bp = buildingProps();
-  $('bldPctWrap').style.display = bp.length ? 'block' : 'none';
+  $('bldPctWrap').style.display = pc && bp.length ? 'block' : 'none';
+  $('bldPctEmpty').style.display = pc && !bp.length ? 'block' : 'none';
   if(!$('bldPct').contains(document.activeElement))
-    $('bldPct').innerHTML = bp.map(g=>`<div class="cat-row"><i style="background:${g.color}"></i><span>${esc(g.name)}</span><input data-id="${g.id}" inputmode="decimal" value="${g.commission ?? ''}" placeholder="${state.settings.commissionPct}" style="width:80px;text-align:center;padding:6px" autocomplete="off"><span style="flex:0;color:var(--muted)">٪</span></div>`).join('');
-  $('tglNotes').classList.toggle('on', !!state.settings.showNotes);
-  $('tglRents').classList.toggle('on', !!state.settings.showRents);
+    $('bldPct').innerHTML = bp.map(g=>`<div class="cat-row"><i style="background:${g.color}"></i><span>${esc(g.name)}</span><input data-id="${g.id}" inputmode="decimal" value="${g.commission ?? state.settings.commissionPct}" style="width:80px;text-align:center;padding:6px" autocomplete="off"><span style="flex:0;color:var(--muted)">٪</span></div>`).join('');
   renderNotifBtn();
 }
 $('tglNotes').onclick = ()=>{ state.settings.showNotes = !state.settings.showNotes; save(); renderSettings(); applySections(); };
 $('tglRents').onclick = ()=>{ state.settings.showRents = !state.settings.showRents; save(); renderSettings(); applySections(); };
-$('personalChips').onclick = e=>{ const b = e.target.closest('.chip'); if(!b) return; state.settings.personalCat = b.dataset.id; save(); renderSettings(); };
-$('commPct').addEventListener('change', ()=>{ const v = calcEval($('commPct').value); if(isNaN(v) || v<0 || v>100){ toast('اكتب نسبة بين 0 و 100'); $('commPct').value = state.settings.commissionPct; return; } state.settings.commissionPct = v; save(); toast('تم حفظ النسبة: '+v+'٪'); });
+$('personalChips').onclick = e=>{
+  const b = e.target.closest('.chip'); if(!b) return;
+  const id = b.dataset.id; if(id===personalCat()) return;
+  const set = ()=>{ state.settings.personalCat = id; save(); renderSettings(); renderAll(); toast('حساب العمولة: '+catName(id)); };
+  if(!personalCat()){ set(); return; }
+  hide('settingsModal');
+  ask(`تغيير حساب العمولة إلى «${catName(id)}»؟ ستذهب عمولة الإيجارات القادمة إليه.`, ()=>{ set(); show('settingsModal'); }, 'تغيير');
+};
 $('bldPct').addEventListener('change', e=>{
   const inp = e.target.closest('input[data-id]'); if(!inp) return;
   const p = propById(inp.dataset.id); if(!p) return;
   const raw = inp.value.trim();
-  if(!raw){ delete p.commission; save(); toast(`«${p.name}» تستخدم النسبة الافتراضية`); return; }
+  if(!raw){ inp.value = p.commission ?? state.settings.commissionPct; return; }
   const v = calcEval(raw);
   if(isNaN(v) || v<0 || v>100){ toast('اكتب نسبة بين 0 و 100'); inp.value = p.commission ?? ''; return; }
   p.commission = v; save(); toast(`نسبة «${p.name}»: ${v}٪`);
@@ -2100,6 +2127,7 @@ $('bkFile').onchange = e=>{
 };
 
 function renderAll(){ renderTasks(); renderNotes(); renderFin(); renderRents(); renderCal(); }
+migrateCommission();
 applySections();
 let startView = 'tasks';
 try{ startView = localStorage.getItem('mahami-view') || 'tasks'; }catch(e){}
