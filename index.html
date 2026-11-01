@@ -2,7 +2,7 @@
 <html lang="ar" dir="rtl">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <title>مهامي</title>
 <link rel="manifest" href="manifest.json">
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
@@ -22,8 +22,8 @@
 @media (prefers-color-scheme:dark){
   :root{--bg:#0f1115;--card:#181b21;--ink:#f3f4f6;--ink2:#d1d5db;--muted:#9ca3af;--line:#2a2f38;--accent:#5b82f5;--accent-soft:#1d2740}
 }
-*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
-html,body{margin:0;background:var(--bg);color:var(--ink);font-family:'IBM Plex Sans Arabic',-apple-system,system-ui,sans-serif;font-size:15px;line-height:1.5;-webkit-text-size-adjust:100%}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent;touch-action:manipulation}
+html,body{touch-action:manipulation;margin:0;background:var(--bg);color:var(--ink);font-family:'IBM Plex Sans Arabic',-apple-system,system-ui,sans-serif;font-size:15px;line-height:1.5;-webkit-text-size-adjust:100%}
 svg{width:20px;height:20px;stroke:currentColor;fill:none;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round;flex:0 0 auto}
 .app{max-width:600px;margin:0 auto;min-height:100vh;padding:calc(16px + env(safe-area-inset-top)) 16px 120px}
 header{display:flex;justify-content:space-between;align-items:center;margin-bottom:16px}
@@ -743,6 +743,7 @@ nav.tabs button{font-size:11px}
 
 <script>
 const $ = id => document.getElementById(id);
+['gesturestart','gesturechange'].forEach(ev=>document.addEventListener(ev, e=>e.preventDefault(), {passive:false}));
 const MONTHS = ['يناير','فبراير','مارس','أبريل','مايو','يونيو','يوليو','أغسطس','سبتمبر','أكتوبر','نوفمبر','ديسمبر'];
 const DAYS = ['الأحد','الاثنين','الثلاثاء','الأربعاء','الخميس','الجمعة','السبت'];
 const COLORS = ['#2f5bea','#16a34a','#dc2626','#d97706','#9333ea','#0891b2','#db2777','#64748b'];
@@ -2197,6 +2198,8 @@ function renderSettings(){
   $('bldPctEmpty').style.display = pc && !bp.length ? 'block' : 'none';
   if(!$('bldPct').contains(document.activeElement))
     $('bldPct').innerHTML = bp.map(g=>`<div class="cat-row"><i style="background:${g.color}"></i><span>${esc(g.name)}</span><input data-id="${g.id}" inputmode="decimal" value="${g.commission ?? state.settings.commissionPct}" style="width:80px;text-align:center;padding:6px" autocomplete="off"><span style="flex:0;color:var(--muted)">٪</span></div>`).join('');
+  $('tglNotes').classList.toggle('on', !!state.settings.showNotes);
+  $('tglRents').classList.toggle('on', !!state.settings.showRents);
   renderNotifBtn();
 }
 $('tglNotes').onclick = ()=>{ state.settings.showNotes = !state.settings.showNotes; save(); renderSettings(); applySections(); };
