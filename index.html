@@ -153,13 +153,26 @@ nav.tabs button.on{color:var(--accent)}
 .pbar{height:6px;background:var(--line);border-radius:99px;overflow:hidden;margin-top:10px}
 .pbar i{display:block;height:100%;background:var(--accent);border-radius:99px}
 .bill.paid .pbar i{background:var(--ok)}
+.gsum{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px}
+.gsum:empty{display:none}
+#billProps{display:none!important}
+.gcard{padding:12px;text-align:right;border-top:4px solid var(--c,var(--line));display:flex;flex-direction:column;gap:6px}
+.gcard.on{border-color:var(--c);box-shadow:0 0 0 1.5px var(--c)}
+.gcard .n{font-weight:600;font-size:14px}
+.gcard .row{display:flex;justify-content:space-between;font-size:12px;color:var(--muted)}
+.gcard .row b{color:var(--ink);font-weight:600}
 .calc-prev{font-size:12px;color:var(--accent);margin-top:4px;min-height:16px}
 .paylog{display:flex;flex-direction:column}
 .paylog div{display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid var(--line);font-size:14px}
 .paylog div:last-child{border-bottom:none}
 .paylog button{color:var(--muted);padding:2px 6px}
-.quick{display:flex;gap:6px;flex-wrap:wrap}
-.quick button{border:1px solid var(--line);padding:6px 12px;border-radius:8px;font-size:13px;color:var(--ink2)}
+.opts{display:flex;flex-direction:column;gap:8px}
+.opt{display:flex;align-items:center;gap:10px;padding:12px 14px;border:1.5px solid var(--line);border-radius:12px;text-align:right;font-size:15px;font-weight:500}
+.opt i{width:20px;height:20px;border-radius:50%;border:2px solid #9ca3af;flex:0 0 auto;position:relative}
+.opt span{flex:1}
+.opt.on{border-color:var(--accent);background:var(--accent-soft)}
+.opt.on i{border-color:var(--accent)}
+.opt.on i::after{content:'';position:absolute;inset:3px;border-radius:50%;background:var(--accent)}
 /* الحاسبة */
 .calc-disp{direction:ltr;text-align:right;background:var(--bg);border:1px solid var(--line);border-radius:12px;padding:12px 14px}
 .calc-disp .e{font-size:15px;color:var(--muted);min-height:22px;word-break:break-all}
@@ -242,6 +255,7 @@ nav.tabs button.on{color:var(--accent)}
       <div class="card stat"><b class="money" id="fRemain">0</b><span>المتبقي من الالتزامات</span></div>
       <div class="card stat"><b class="money" id="fAfter">0</b><span>الرصيد بعد السداد</span></div>
     </div>
+    <div class="gsum" id="groupSum"></div>
     <div class="chips" id="billProps"></div>
     <div class="seg" id="billFilters">
       <button class="on" data-f="open">الحالية</button>
@@ -340,7 +354,7 @@ nav.tabs button.on{color:var(--accent)}
     <div><label for="bName">اسم الالتزام</label><input id="bName" placeholder="مثال: فاتورة الكهرباء" autocomplete="off"></div>
     <div><label for="bAmount">المبلغ المطلوب (ر.ع)</label><input id="bAmount" class="calc-in" placeholder="مثال: 1500 أو 450*3" autocomplete="off"><div class="calc-prev"></div></div>
     <div><label for="bDue">تاريخ الاستحقاق (اختياري)</label><input type="date" id="bDue"></div>
-    <div id="bPropWrap"><span class="lbl">العقار</span><div class="chips" id="bProps" style="flex-wrap:wrap;margin:0"></div></div>
+    <div id="bPropWrap"><span class="lbl">التصنيف</span><div class="chips" id="bProps" style="flex-wrap:wrap;margin:0"></div></div>
     <div id="bLogWrap"><span class="lbl">سجل الدفعات</span><div class="card" style="padding:4px 12px"><div class="paylog" id="bLog"></div></div></div>
     <div class="actions">
       <button class="btn danger-ghost" id="bDel">حذف الالتزام</button>
@@ -356,9 +370,13 @@ nav.tabs button.on{color:var(--accent)}
 <div class="modal-bg" id="payModal">
   <div class="modal">
     <h2 id="pmTitle">دفع</h2>
-    <div class="hint" id="pmInfo" style="font-size:14px;color:var(--ink2)"></div>
-    <div><label for="pAmount">المبلغ المدفوع (ر.ع)</label><input id="pAmount" class="calc-in" autocomplete="off"><div class="calc-prev"></div></div>
-    <div class="quick" id="pQuick"></div>
+    <div class="card nums" id="pmNums" style="padding:12px 14px;margin:0"></div>
+    <div class="opts" id="pOpts">
+      <button class="opt on" data-m="full"><i></i><span>المبلغ كاملاً</span><b class="money" id="pFullAmt"></b></button>
+      <button class="opt" data-m="other"><i></i><span>مبلغ آخر</span></button>
+    </div>
+    <div id="pOtherWrap" style="display:none"><label for="pAmount">المبلغ المدفوع (ر.ع)</label><input id="pAmount" class="calc-in" placeholder="مثال: 15" autocomplete="off"><div class="calc-prev"></div></div>
+    <div class="card" id="pAfter" style="padding:10px 14px;font-size:13px;color:var(--ink2);background:var(--bg)"></div>
     <div><label for="pDate">تاريخ الدفع</label><input type="date" id="pDate"></div>
     <div class="actions">
       <span></span>
@@ -424,12 +442,12 @@ nav.tabs button.on{color:var(--accent)}
       <button class="btn block" id="catAdd"><svg><use href="#i-plus"/></svg>إضافة الفئة</button>
     </div>
     <div class="set-sec">
-      <h3>العقارات</h3>
-      <div class="hint">تُستخدم في قسم المالية لربط كل التزام بعقاره.</div>
+      <h3>تصنيفات المالية</h3>
+      <div class="hint">قسّم التزاماتك كما تريد، مثل: شخصي، عمارة المعبيلة، فلة العامرات. تظهر في المالية مع ملخص لكل تصنيف.</div>
       <div class="card" id="propList"></div>
-      <input id="propName" placeholder="اسم العقار، مثل: عمارة الخوض" maxlength="30">
+      <input id="propName" placeholder="اسم التصنيف، مثل: شخصي أو عمارة المعبيلة" maxlength="30">
       <div class="swatches" id="propColors"></div>
-      <button class="btn block" id="propAdd"><svg><use href="#i-plus"/></svg>إضافة العقار</button>
+      <button class="btn block" id="propAdd"><svg><use href="#i-plus"/></svg>إضافة التصنيف</button>
     </div>
     <div class="set-sec">
       <h3>الإشعارات</h3>
@@ -561,10 +579,11 @@ $('todayLbl').textContent = `${DAYS[now.getDay()]}، ${now.getDate()} ${MONTHS[n
 $('fab').onclick = ()=> view==='notes' ? openNote(null) : view==='fin' ? openBill(null) : openTask(null, view==='cal' ? selDay : todayStr());
 
 /* ---------- اختيار الفئة داخل النوافذ ---------- */
-function renderCatPicker(wrapId, listId, selected, items){
+function renderCatPicker(wrapId, listId, selected, items, showSingle){
   items = items || state.cats;
   const wrap = $(wrapId), list = $(listId);
-  if(items.length < 2){ wrap.style.display = 'none'; list.dataset.sel = items[0]?.id || ''; return; }
+  if(showSingle && items.length===1) selected = items[0].id;
+  if(items.length < (showSingle?1:2)){ wrap.style.display = 'none'; list.dataset.sel = items[0]?.id || ''; return; }
   wrap.style.display = 'block';
   list.dataset.sel = selected && items.some(c=>c.id===selected) ? selected : '';
   const draw = ()=>{
@@ -845,7 +864,7 @@ function billHTML(b){
   const late = !done && b.due && b.due < todayStr();
   const pct = b.amount>0 ? Math.min(100, paid/b.amount*100) : 100;
   const tags = [];
-  if(p && state.props.length>1) tags.push(`<span class="tag"><i style="background:${p.color}"></i>${esc(p.name)}</span>`);
+  if(p) tags.push(`<span class="tag"><i style="background:${p.color}"></i>${esc(p.name)}</span>`);
   if(b.due) tags.push(`<span class="tag ${late?'late':''}">${ico('cal')}${late?'متأخر · ':''}${niceDate(b.due)}</span>`);
   if(done) tags.push(`<span class="tag" style="color:var(--ok)">${ico('check')}مدفوع بالكامل</span>`);
   return `<div class="card bill ${done?'paid':''}" style="--c:${p?p.color:'transparent'}" data-id="${b.id}">
@@ -861,10 +880,32 @@ function billHTML(b){
     <div class="pbar"><i style="width:${pct}%"></i></div>
   </div>`;
 }
+function renderGroupSum(){
+  const el = $('groupSum');
+  if(!state.props.length){ el.innerHTML = ''; return; }
+  const groups = state.props.map(p=>({id:p.id, name:p.name, color:p.color}));
+  if(state.bills.some(b=>!propById(b.prop))) groups.push({id:'', name:'بدون تصنيف', color:'var(--muted)'});
+  el.innerHTML = groups.map(g=>{
+    const bs = state.bills.filter(b=>(propById(b.prop)?b.prop:'')===g.id);
+    const rem = bs.reduce((s,b)=>s+remOf(b),0), paid = bs.reduce((s,b)=>s+paidOf(b),0);
+    const open = bs.filter(b=>!isPaid(b)).length;
+    return `<button class="card gcard ${billProp===g.id&&g.id?'on':''}" style="--c:${g.color}" data-g="${g.id}">
+      <span class="n">${esc(g.name)}</span>
+      <span class="row">الباقي<b class="money">${fmt(rem)}</b></span>
+      <span class="row">المدفوع<b class="money">${fmt(paid)}</b></span>
+      <span class="row">التزامات حالية<b>${open}</b></span>
+    </button>`;
+  }).join('');
+}
+$('groupSum').onclick = e=>{
+  const c = e.target.closest('.gcard'); if(!c || !c.dataset.g) return;
+  billProp = billProp===c.dataset.g ? 'all' : c.dataset.g; renderFin();
+};
 function renderFin(){
   billProp = renderCatFilter('billProps', billProp, id=>{ billProp = id; renderFin(); }, state.props);
   $('balAmt').textContent = fmt(state.balance) + ' ر.ع';
   $('balAmt').classList.toggle('neg', state.balance < 0);
+  renderGroupSum();
   const pool = state.bills.filter(b=>billProp==='all' || b.prop===billProp);
   const remain = r3(pool.reduce((s,b)=>s+remOf(b),0));
   $('fRemain').textContent = fmt(remain);
@@ -915,7 +956,7 @@ function openBill(b){
   $('bName').value = b ? b.name : '';
   setCalcIn('bAmount', b ? String(b.amount) : '');
   $('bDue').value = b ? (b.due||'') : '';
-  renderCatPicker('bPropWrap','bProps', b ? b.prop : (billProp!=='all'?billProp:''), state.props);
+  renderCatPicker('bPropWrap','bProps', b ? b.prop : (billProp!=='all'?billProp:''), state.props, true);
   $('bDel').style.visibility = b ? 'visible' : 'hidden';
   renderPayLog(b);
   show('billModal');
@@ -947,7 +988,7 @@ $('bSave').onclick = safe(()=>{
   const amount = calcEval($('bAmount').value);
   if(isNaN(amount) || amount<=0){ $('bAmount').focus(); toast('اكتب المبلغ المطلوب'); return; }
   const prop = pickedCat('bProps', state.props);
-  if(state.props.length>=2 && !prop){ toast('اختر العقار'); return; }
+  if(state.props.length>=2 && !prop){ toast('اختر التصنيف'); return; }
   const data = {name, amount, due:$('bDue').value, prop};
   if(editingBill) Object.assign(state.bills.find(x=>x.id===editingBill), data);
   else state.bills.unshift({id:uid(), created:Date.now(), payments:[], ...data});
@@ -959,23 +1000,41 @@ $('bDel').onclick = ()=>{
 };
 
 // الدفع
-let payingBill = null;
+let payingBill = null, payMode = 'full';
+function payAmount(){
+  const b = state.bills.find(x=>x.id===payingBill); if(!b) return NaN;
+  return payMode==='full' ? remOf(b) : calcEval($('pAmount').value);
+}
+function renderPayAfter(){
+  const b = state.bills.find(x=>x.id===payingBill); if(!b) return;
+  const v = payAmount(), rem = remOf(b);
+  if(isNaN(v) || v<=0){ $('pAfter').textContent = 'اكتب المبلغ المدفوع'; return; }
+  if(v > rem + 0.0005){ $('pAfter').innerHTML = `<span style="color:var(--danger)">المبلغ أكبر من الباقي (${fmt(rem)} ر.ع)</span>`; return; }
+  $('pAfter').innerHTML = `بعد الدفع: المدفوع <b class="money">${fmt(paidOf(b)+v)}</b> · الباقي <b class="money">${fmt(rem-v)}</b> · الرصيد <b class="money">${fmt(state.balance-v)}</b> ر.ع`;
+}
+function setPayMode(m){
+  payMode = m;
+  document.querySelectorAll('#pOpts .opt').forEach(o=>o.classList.toggle('on', o.dataset.m===m));
+  $('pOtherWrap').style.display = m==='other' ? 'block' : 'none';
+  if(m==='other') setTimeout(()=>$('pAmount').focus(), 50);
+  renderPayAfter();
+}
+$('pOpts').onclick = e=>{ const o = e.target.closest('.opt'); if(o) setPayMode(o.dataset.m); };
+$('pAmount').addEventListener('input', renderPayAfter);
 function openPay(b){
   payingBill = b.id;
-  const rem = remOf(b);
   $('pmTitle').textContent = 'دفع: ' + b.name;
-  $('pmInfo').innerHTML = `الباقي: <b class="money">${fmt(rem)} ر.ع</b> · الرصيد: <b class="money">${fmt(state.balance)} ر.ع</b>`;
-  setCalcIn('pAmount', String(rem));
+  $('pmNums').innerHTML = `<div>المطلوب<b class="money">${fmt(b.amount)}</b></div><div>المدفوع<b class="money">${fmt(paidOf(b))}</b></div><div class="rem">الباقي<b class="money">${fmt(remOf(b))}</b></div>`;
+  $('pFullAmt').textContent = fmt(remOf(b));
+  setCalcIn('pAmount', '');
   $('pDate').value = todayStr();
-  const opts = [['المبلغ كاملاً', rem], ['النصف', r3(rem/2)]];
-  $('pQuick').innerHTML = opts.map(([l,v])=>`<button data-v="${v}">${l} <span class="money">(${fmt(v)})</span></button>`).join('');
   show('payModal');
+  setPayMode('full');
 }
-$('pQuick').onclick = e=>{ const b = e.target.closest('button[data-v]'); if(b) setCalcIn('pAmount', b.dataset.v); };
 $('pCancel').onclick = ()=>hide('payModal');
 $('pSave').onclick = safe(()=>{
   const b = state.bills.find(x=>x.id===payingBill); if(!b) return;
-  const v = calcEval($('pAmount').value), rem = remOf(b);
+  const v = payAmount(), rem = remOf(b);
   if(isNaN(v) || v<=0){ toast('اكتب المبلغ المدفوع'); return; }
   if(v > rem + 0.0005){ toast(`المبلغ أكبر من الباقي (${fmt(rem)})`); return; }
   b.payments.push({id:uid(), amount:v, date:$('pDate').value || todayStr()});
@@ -1054,8 +1113,8 @@ function renderCal(){
 const MANAGERS = {
   cat:  {key:'cats',  list:'catList',  name:'catName',  colors:'catColors',  add:'catAdd',  word:'الفئة',  none:'لا توجد فئات بعد',
          owners:()=>[...state.tasks, ...state.notes], field:'cat', orphan:'ستبقى المهام والملاحظات بدون فئة.'},
-  prop: {key:'props', list:'propList', name:'propName', colors:'propColors', add:'propAdd', word:'العقار', none:'لا توجد عقارات بعد',
-         owners:()=>state.bills, field:'prop', orphan:'ستبقى الالتزامات بدون عقار.'}
+  prop: {key:'props', list:'propList', name:'propName', colors:'propColors', add:'propAdd', word:'التصنيف', none:'لا توجد تصنيفات بعد',
+         owners:()=>state.bills, field:'prop', orphan:'ستبقى الالتزامات بدون تصنيف.'}
 };
 const newColors = {cat:COLORS[0], prop:COLORS[3]};
 function renderManager(k){
